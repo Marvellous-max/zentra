@@ -366,19 +366,22 @@ ZB.timers = [];
     if (bell) bell.onclick = function () { toggleNotifPanel(bell); };
     var am = root.querySelector('#x-acct-menu');
     if (am) am.onclick = function () { accountMenu(am); };
+    var sui = root.querySelector('.shell');
+    var shellRoot = sui || root;
     var menuBtn = root.querySelector('#x-menu');
     if (menuBtn) {
       menuBtn.onclick = function (e) {
         e.stopPropagation();
-        root.classList.toggle('nav-open');
+        shellRoot.classList.toggle('nav-open');
       };
     }
-    if (root.querySelector('.sidebar')) {
-      root.querySelector('.sidebar').onclick = function (e) {
+    var sid = root.querySelector('.sidebar');
+    if (sid) {
+      sid.onclick = function (e) {
         // navigating inside the mobile drawer should close it
         var item = e.target.closest('.nav-item') || e.target.closest('#x-logout');
-        if (item && root.classList.contains('nav-open')) {
-          setTimeout(function () { root.classList.remove('nav-open'); }, 60);
+        if (item && shellRoot.classList.contains('nav-open')) {
+          setTimeout(function () { shellRoot.classList.remove('nav-open'); }, 60);
         }
       };
     }
