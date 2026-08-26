@@ -182,7 +182,9 @@ ZB.timers = [];
         '<div class="banner" style="margin:14px 28px 0">' + U().icon('alert', 16) +
         ' Scheduled maintenance is ON — customer money moves are paused.' +
         (kind !== 'user' ? ' <span class="faint">(staff bypass active)</span>' : '') + '</div>' : '') +
-      '<header class="topbar"><span class="page-name">' + U().esc(title) + '</span><span class="spacer"></span>' +
+      '<header class="topbar">' +
+      '<button class="icon-btn menu-btn" id="x-menu" aria-label="Menu" style="display:none">' + U().icon('menu', 19) + '</button>' +
+      '<span class="page-name">' + U().esc(title) + '</span><span class="spacer"></span>' +
       '<div style="position:relative">' +
       '<button class="icon-btn" id="x-bell" aria-label="Notifications" style="position:relative">' + U().icon('bell', 18) +
       '<span class="bell-badge hidden" id="notif-badge"></span></button>' +
@@ -364,6 +366,22 @@ ZB.timers = [];
     if (bell) bell.onclick = function () { toggleNotifPanel(bell); };
     var am = root.querySelector('#x-acct-menu');
     if (am) am.onclick = function () { accountMenu(am); };
+    var menuBtn = root.querySelector('#x-menu');
+    if (menuBtn) {
+      menuBtn.onclick = function (e) {
+        e.stopPropagation();
+        root.classList.toggle('nav-open');
+      };
+    }
+    if (root.querySelector('.sidebar')) {
+      root.querySelector('.sidebar').onclick = function (e) {
+        // navigating inside the mobile drawer should close it
+        var item = e.target.closest('.nav-item') || e.target.closest('#x-logout');
+        if (item && root.classList.contains('nav-open')) {
+          setTimeout(function () { root.classList.remove('nav-open'); }, 60);
+        }
+      };
+    }
   }
 
   function clearTimers() {
