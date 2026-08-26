@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Zentra Bank — no-fee checking, high-yield savings, credit cards and loans. Banking designed around you. Member FDIC.">
+  <title>Zentra Bank | No-Fee Checking & High-Yield Savings</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23004977'/%3E%3Cpath d='M7 7h10l-7 5h7l-9 6' stroke='%23ffffff' stroke-width='2.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#004977">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/pages.css">
+</head>
+<body>
+  <div id="app">
+    <div class="boot"><div class="boot-ring"></div><span>Zentra Bank is loading…</span></div>
+  </div>
+  <script>
+    window.addEventListener('error', function (e) {
+      var el = document.querySelector('.boot span');
+      if (el) el.textContent = 'Error: ' + e.message;
+    });
+  </script>
+  <script src="/js/zb-ui.js"></script>
+  <script src="/js/zb-api.js"></script>
+  <script src="/js/views/public.js"></script>
+  <script src="/js/views/user.js"></script>
+  <script src="/js/views/admin.js"></script>
+  <script src="/js/views/system.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

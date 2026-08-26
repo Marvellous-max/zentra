@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: zentra
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python server/app.py"
+    autoDeploy: true
+    healthCheckPath: /api/public/bootstrap
+    disk:
+      name: zentra-data
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1
