@@ -1,4 +1,7 @@
+# bank data + selftest data — never ship
+data/
 server/data/
+server/data-selftest/
 __pycache__/
 *.pyc
 .DS_Store
