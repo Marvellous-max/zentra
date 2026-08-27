@@ -773,9 +773,6 @@ ZB.forms = ZB.forms || {};
       '<div class="field"><label>Password</label>' +
       '<input class="input" type="password" name="password" required autocomplete="current-password" placeholder="Your password"></div>' +
       '<button class="btn lg block" type="submit">Sign in securely ' + U().icon('lock', 14) + '</button></form>' +
-      '<div class="demo-fill">' +
-      '<button type="button" class="chip-btn" id="fill-demo">Try demo customer</button>' +
-      '<button type="button" class="chip-btn" id="fill-admin">Staff sign-in</button></div>' +
       '<p class="auth-note">New to Zentra? <a href="#/register">Open an account</a> &#183; ' +
       '<a href="#/support">Forgot password?</a></p>' +
       '</div></div>';
@@ -798,14 +795,6 @@ ZB.forms = ZB.forms || {};
             location.hash = ZB.homeFor(r.user);
           }).catch(function (ex) { showErr(ex.message || 'Sign-in failed.'); });
         };
-        document.getElementById('fill-demo').addEventListener('click', function () {
-          var f = document.querySelector('form[data-form=login]');
-          f.email.value = 'demo@zentra.bank'; f.password.value = 'Demo@1234';
-        });
-        document.getElementById('fill-admin').addEventListener('click', function () {
-          var f = document.querySelector('form[data-form=login]');
-          f.email.value = 'admin@zentra.bank'; f.password.value = 'Admin@1234';
-        });
       }
     };
   }
