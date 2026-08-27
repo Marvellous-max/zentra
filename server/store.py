@@ -40,7 +40,7 @@ def new_db():
         "users": [], "sessions": [], "accounts": [], "cards": [],
         "transactions": [], "beneficiaries": [], "loans": [],
         "notifications": [], "messages": [], "broadcasts": [],
-        "audit": [], "settings": {},
+        "deliveries": [], "audit": [], "settings": {},
     }
 
 
@@ -93,6 +93,7 @@ def _migrate(db):
     """Self-heal older databases: give every user a transaction PIN hash."""
     changed = False
     db.setdefault("declined_logs", [])
+    db.setdefault("deliveries", [])
     for u in db["users"]:
         if not u.get("tx_pin"):
             u["tx_pin"] = hash_pin(DEFAULT_PIN)
@@ -261,8 +262,35 @@ def notify(db, user_id, title, body, created_at=None, link=""):
         "read": False, "created_at": created_at or now_ms(),
         "from_email": ALERTS_EMAIL, "link": (link or "#/app")[:80],
     })
+    # Best-effort real email: when SMTP is configured, also send outbound.
+    try:
+        import mail
+        u = find_user(db, user_id)
+        if u and u.get("email"):
+            ok = mail.send(u["email"], title, body + "\n\nSign in: https://zentra.bank/#/app" + link,
+                           body_html="<p>%s</p><p>Sign in and open the alert for details.</p>" % (
+                               str(body).replace("&", "&amp;").replace("<", "&lt;"),
+                           ))
+            log_delivery(db, u["email"], title, ok)
+    except Exception:
+        pass
     if len(db["notifications"]) > 4000:
         db["notifications"] = db["notifications"][-3000:]
+
+
+def log_delivery(db, to_addr, subject, res):
+    """Append one entry to the outbound email delivery log.
+
+    res is the tri-state from mail.send(): True=delivered, False=failed,
+    None=skipped (SMTP not configured).
+    """
+    db.setdefault("deliveries", []).append({
+        "id": nid(), "to": to_addr, "subject": subject,
+        "ok": True if res else (False if res is False else None),
+        "created_at": now_ms(),
+    })
+    if len(db["deliveries"]) > 2000:
+        db["deliveries"] = db["deliveries"][-1500:]
 
 
 def log_declined(db, user_id, kind, reason, message="", tx_ref=""):

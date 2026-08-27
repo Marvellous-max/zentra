@@ -763,6 +763,20 @@ def broadcast(ctx):
 
 
 # ----------------------------------------------------------------- audit ----
+@route("GET", "/api/admin/deliveries", auth="admin")
+def deliveries_list(ctx):
+    """Outbound email delivery log (System console)."""
+    db = ctx["db"]
+    rows = [{"id": d.get("id"), "to": d.get("to"), "subject": d.get("subject"),
+             "ok": d.get("ok"), "created_at": d.get("created_at")}
+            for d in db.get("deliveries", [])]
+    rows.sort(key=lambda r: r.get("created_at", 0), reverse=True)
+    counts = {"sent": sum(1 for d in db.get("deliveries", []) if d.get("ok") is True),
+              "failed": sum(1 for d in db.get("deliveries", []) if d.get("ok") is False),
+              "skipped": sum(1 for d in db.get("deliveries", []) if d.get("ok") is None)}
+    return {"deliveries": rows[:200], "counts": counts}
+
+
 @route("GET", "/api/admin/audit", auth="admin")
 def audit_log(ctx):
     db = ctx["db"]

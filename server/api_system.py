@@ -70,6 +70,10 @@ def status(ctx):
             "pending_items": pending_payouts,
         },
         "flags": {k: bool(s.get(k)) for k in BOOL_KEYS},
+        "mail": {
+            "enabled": bool(os.environ.get("SMTP_HOST")),
+            "from": os.environ.get("SMTP_FROM", "alerts@zentra.bank"),
+        },
     }
 
 

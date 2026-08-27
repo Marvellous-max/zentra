@@ -18,8 +18,23 @@ ZB.forms = ZB.forms || {};
   /* ============================================================= HEALTH */
   async function health() {
     var s = await ZB.api.get('/api/system/status');
+    var delRes = null;
+    try { delRes = await ZB.api.get('/api/admin/deliveries'); } catch (_) {}
     var upH = Math.floor(s.uptime_s / 3600), upM = Math.floor((s.uptime_s % 3600) / 60);
-
+    var mail = (delRes && delRes.deliveries) || [];
+    var mailCard =
+      '<div class="card"><div class="card-title"><h3>Recent outbound mail</h3>' +
+      (delRes ? '<span class="tiny faint">' + delRes.counts.sent + ' sent · ' +
+        delRes.counts.failed + ' failed' + (delRes.counts.skipped ? ' · ' + delRes.counts.skipped + ' skipped' : '') + '</span>' : '') + '</div>' +
+      (mail.length ? '<div class="kv">' + mail.slice(0, 8).map(function (m) {
+        var st = m.ok === true ? ['green', 'sent', 'check'] : (m.ok === false ? ['red', 'failed', 'x'] : ['gray', 'skipped', 'bell']);
+        return '<div class="row" style="gap:8px;justify-content:space-between"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+          U().icon(st[2], 13) + ' ' +
+          U().esc(m.subject || '(no subject)') +
+          '<span class="tiny faint" style="display:block">' + U().esc(m.to) + '</span></span>' +
+          '<span class="pill ' + st[0] + '">' + st[1] + '</span></div>';
+      }).join('') + '</div>' : '<p class="tiny muted" style="padding:8px 12px">No outbound mail recorded yet.</p>') +
+      '</div>';
     var c = s.counts;
     var html =
       pageHead('System health', 'Live vitals of the banking core.',
@@ -36,6 +51,7 @@ ZB.forms = ZB.forms || {};
       hItem('Datastore', s.db_path + ' · ' + s.db_size_kb + ' KB', true) +
       hItem('Engine latency', s.latency_ms + ' ms scan', true) +
       hItem('Active sessions', String(s.active_sessions), s.active_sessions < 200) +
+      hItem('Outbound mail', s.mail && s.mail.enabled ? 'ACTIVE · from ' + s.mail.from : 'off (in-app only)', s.mail && s.mail.enabled) +
       hItem('Platform', s.platform, true) +
       '</div>' +
 
@@ -64,7 +80,8 @@ ZB.forms = ZB.forms || {};
         return '<div class="flag-row"><span class="small">' +
           k.replace(/_/g, ' ').replace(/\b\w/g, function (ch) { return ch.toUpperCase(); }) + '</span>' +
           '<span class="pill ' + (on ? 'green' : 'red') + '">' + (on ? 'on' : 'off') + '</span></div>';
-      }).join('') + '</div></div>';
+      }).join('') + '</div></div>' +
+      mailCard + '</div>';
 
     return {
       html: html, title: 'System health',
