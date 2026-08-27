@@ -999,10 +999,65 @@ ZB.forms = ZB.forms || {};
     };
   }
 
+  async function mailPage() {
+    var status = null;
+    try { status = await ZB.api.get('/api/system/status'); } catch (_) {}
+    var mailState = (status && status.mail) || { enabled: false, from: 'alerts@zentra.bank' };
+    var cust = await ZB.api.get('/api/admin/users?per=200');
+    var del = null;
+    try { del = await ZB.api.get('/api/admin/deliveries'); } catch (_) {}
+
+    var setupHelp = mailState.enabled
+      ? '<p class="tiny faint">Outbound email is <b>active</b> · sent from <b>' + U().esc(mailState.from) + '</b>. New customers, transaction alerts and admin emails go straight to real inboxes.</p>'
+      : '<p class="tiny faint">Email is currently <b>in-app only</b> (nothing real is sent). To turn on real delivery, add <code>SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM</code> under your hosting environment (e.g. Resend free tier), then redeploy — see Delivery log below.</p>';
+
+    var statusPill = mailState.enabled
+      ? '<span class="pill green">ACTIVE · ' + U().esc(mailState.from) + '</span>'
+      : '<span class="pill red">OFF · in-app only</span>';
+
+    var opts = cust.users.map(function (u) {
+      return '<option value="' + u.id + '">' + U().esc(u.name) + ' — ' + U().esc(u.email) + '</option>';
+    }).join('');
+
+    var delRows = (del && del.deliveries) || [];
+    var html =
+      pageHead('Email', 'Compose branded mail to any customer · delivery log') +
+      '<div class="split rev"><div class="card pad-lg">' +
+      '<form data-form="adm-mail">' +
+      '<div class="field"><label>Send to</label><select class="input" name="user_id" required>' +
+      '<option value="">Choose a customer…</option>' + opts + '</select></div>' +
+      '<div class="field"><label>Subject</label><input class="input" name="subject" required maxlength="120" placeholder="Important: action required on your account"></div>' +
+      '<div class="field"><label>Message</label><textarea class="input" name="body" rows="7" required maxlength="1000" placeholder="Hello,&#10;&#10;Write the message…"></textarea></div>' +
+      '<button class="btn primary block lg" type="submit">' + U().icon('send', 15) + ' Send email</button>' +
+      '</form></div>' +
+      '<div class="split-col" style="display:flex;flex-direction:column;gap:14px">' +
+      '<div class="card"><div class="card-title"><h3>Mail status</h3>' + statusPill + '</div>' + setupHelp + '</div>' +
+      '<div class="card"><div class="card-title"><h3>Recent deliveries</h3>' + (del ? '<span class="tiny faint">' + del.counts.sent + ' sent · ' + del.counts.failed + ' failed</span>' : '') + '</div>' +
+      (delRows.length ? delRows.slice(0, 10).map(function (m) {
+        var st = m.ok === true ? ['green', 'sent'] : (m.ok === false ? ['red', 'failed'] : ['gray', 'skipped']);
+        return '<div class="set-row"><div><b class="small">' + U().esc(m.subject) + '</b>' +
+          '<div class="tiny faint">' + U().esc(m.to) + ' · ' + U().rel(m.created_at) + '</div></div>' +
+          '<span class="pill ' + st[0] + '">' + st[1] + '</span></div>';
+      }).join('') : '<p class="small muted">No outbound mail yet.</p>') + '</div>' +
+      '</div></div>';
+
+    return {
+      html: html, title: 'Email',
+      mount: function () {
+        ZB.forms['adm-mail'] = async function (data) {
+          try {
+            await ZB.api.post('/api/admin/send-mail', data);
+            U().toast('Email sent 📧'); ZB.render();
+          } catch (e) { U().toast(e.message, 'err'); }
+        };
+      }
+    };
+  }
+
   ZB.views.admin = {
     overview: overview, customers: customers, accountsPage: accountsPage,
     transactions: transactions, payouts: payouts, loansPage: loansPage,
     kyc: kyc, support: support, broadcast: broadcast, auditPage: auditPage,
-    approvals: approvals, declinedLog: declinedLog
+    approvals: approvals, declinedLog: declinedLog, mailPage: mailPage
   };
 })(window.ZB);

@@ -763,6 +763,27 @@ def broadcast(ctx):
 
 
 # ----------------------------------------------------------------- audit ----
+@route("POST", "/api/admin/send-mail", auth="admin")
+def send_mail_any(ctx):
+    """Compose a branded email to any customer (used by the Mail page)."""
+    db = ctx["db"]
+    uid = ctx["body"].get("user_id")
+    subject = (ctx["body"].get("subject") or "").strip()[:120]
+    body = (ctx["body"].get("body") or "").strip()[:1000]
+    if not uid:
+        raise ApiError("Pick a customer to email.", 400)
+    u = store.find_user(db, int(uid))
+    if not u:
+        raise ApiError("That customer no longer exists.", 404)
+    if not u.get("email"):
+        raise ApiError("That customer has no email address on file.", 400)
+    if len(subject) < 3 or len(body) < 10:
+        raise ApiError("Give the email a subject and a message of at least a few words.")
+    store.notify(db, u["id"], subject, body, link="#/app/support")
+    store.audit(db, ctx["user"], "admin.email_customer", "user:%d" % u["id"], email=u["email"])
+    return {"ok": True, "to": u["email"]}
+
+
 @route("GET", "/api/admin/deliveries", auth="admin")
 def deliveries_list(ctx):
     """Outbound email delivery log (System console)."""
