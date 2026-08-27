@@ -171,7 +171,21 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
             ctype += "; charset=utf-8"
         with open(full, "rb") as f:
-            self._send(200, f.read(), ctype)
+            data = f.read()
+            if full.endswith("index.html") and os.environ.get("SMARTSUPP_KEY"):
+                key = os.environ["SMARTSUPP_KEY"].strip()
+                snippet = (
+                    '<script type="text/javascript">'
+                    'var smartsupp_key=%r;'
+                    'window.smartsupp||(function(d){'
+                    'var s,c,o=smartsupp=function(){o._.push(arguments)};o._=[];'
+                    's=d.getElementsByTagName("script")[0];c=d.createElement("script");'
+                    'c.type="text/javascript";c.charset="utf-8";c.async=true;'
+                    'c.src="https://www.smartsuppchat.com/loader.js?"+smartsupp_key;'
+                    's.parentNode.insertBefore(c,s);})(document);'
+                    '</script>' % key)
+                data = data.replace(b"</body>", snippet.encode("utf-8") + b"</body>")
+            self._send(200, data, ctype)
 
 
 class Server(ThreadingHTTPServer):
