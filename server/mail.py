@@ -32,14 +32,20 @@ RESEND_URL = "https://api.resend.com/emails"
 DEFAULT_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "Zentra Bank")
 
 
+def _env(name):
+    """Env value with whitespace/newlines stripped (Render paste-safe)."""
+    v = os.environ.get(name)
+    return v.strip() if isinstance(v, str) else v
+
+
 # --------------------------------------------------------------- provider ---
 def provider():
     """'brevo' | 'resend' | 'smtp' | None — first configured wins."""
-    if os.environ.get("BREVO_API_KEY"):
+    if _env("BREVO_API_KEY"):
         return "brevo"
-    if os.environ.get("RESEND_API_KEY"):
+    if _env("RESEND_API_KEY"):
         return "resend"
-    if os.environ.get("SMTP_HOST"):
+    if _env("SMTP_HOST"):
         return "smtp"
     return None
 
@@ -50,11 +56,8 @@ def available():
 
 def from_address():
     """The real sender mailbox (must be verified in the provider's console)."""
-    return (os.environ.get("MAIL_FROM")
-            or os.environ.get("BREVO_FROM")
-            or os.environ.get("RESEND_FROM")
-            or os.environ.get("SMTP_FROM")
-            or "alerts@zentra.bank")
+    return (_env("MAIL_FROM") or _env("BREVO_FROM") or _env("RESEND_FROM")
+            or _env("SMTP_FROM") or "alerts@zentra.bank")
 
 
 def from_name():
@@ -113,7 +116,7 @@ def _send_brevo(to_addr, subject, body_txt, body_html, sender):
         "htmlContent": _branded_html(body_html or _text_to_html(body_txt)),
     }
     return _post(BREVO_URL, payload, {
-        "api-key": os.environ["BREVO_API_KEY"],
+        "api-key": _env("BREVO_API_KEY"),
         "content-type": "application/json",
         "accept": "application/json",
     })
@@ -128,7 +131,7 @@ def _send_resend(to_addr, subject, body_txt, body_html, sender):
         "html": _branded_html(body_html or _text_to_html(body_txt)),
     }
     return _post(RESEND_URL, payload, {
-        "Authorization": "Bearer " + os.environ["RESEND_API_KEY"],
+        "Authorization": "Bearer " + _env("RESEND_API_KEY"),
         "content-type": "application/json",
     })
 
@@ -142,8 +145,8 @@ def _send_smtp(to_addr, subject, body_txt, body_html, sender):
     if body_html:
         msg.add_alternative(_branded_html(body_html), subtype="html")
     port = int(os.environ.get("SMTP_PORT", "587"))
-    host = os.environ["SMTP_HOST"]
-    user, pwd = os.environ.get("SMTP_USER", ""), os.environ.get("SMTP_PASS", "")
+    host = _env("SMTP_HOST")
+    user, pwd = _env("SMTP_USER") or "", _env("SMTP_PASS") or ""
     if port == 465:
         with smtplib.SMTP_SSL(host, port, timeout=20) as s:
             if user:
