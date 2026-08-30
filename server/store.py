@@ -262,15 +262,15 @@ def notify(db, user_id, title, body, created_at=None, link=""):
         "read": False, "created_at": created_at or now_ms(),
         "from_email": ALERTS_EMAIL, "link": (link or "#/app")[:80],
     })
-    # Best-effort real email: when SMTP is configured, also send outbound.
+    # Best-effort real email: when a mail provider is configured, also send outbound.
     try:
         import mail
         u = find_user(db, user_id)
         if u and u.get("email"):
-            ok = mail.send(u["email"], title, body + "\n\nSign in: https://zentra.bank/#/app" + link,
-                           body_html="<p>%s</p><p>Sign in and open the alert for details.</p>" % (
-                               str(body).replace("&", "&amp;").replace("<", "&lt;"),
-                           ))
+            ok = mail.send(u["email"], title, body,
+                           body_html="<p>%s</p>" % str(body)
+                           .replace("&", "&amp;").replace("<", "&lt;")
+                           .replace(">", "&gt;"))
             log_delivery(db, u["email"], title, ok)
     except Exception:
         pass

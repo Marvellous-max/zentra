@@ -1008,11 +1008,14 @@ ZB.forms = ZB.forms || {};
     try { del = await ZB.api.get('/api/admin/deliveries'); } catch (_) {}
 
     var setupHelp = mailState.enabled
-      ? '<p class="tiny faint">Outbound email is <b>active</b> · sent from <b>' + U().esc(mailState.from) + '</b>. New customers, transaction alerts and admin emails go straight to real inboxes.</p>'
-      : '<p class="tiny faint">Email is currently <b>in-app only</b> (nothing real is sent). To turn on real delivery, add <code>SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM</code> under your hosting environment (e.g. Resend free tier), then redeploy — see Delivery log below.</p>';
+      ? '<p class="tiny faint">Outbound email is <b>active via ' + U().esc(mailState.provider) + '</b> · sent from <b>' + U().esc(mailState.from) + '</b>. New customers, transaction alerts and admin emails go straight to real inboxes.</p>'
+      : '<p class="tiny faint">Email is currently <b>in-app only</b> (nothing real is sent). To turn on real delivery add API env vars on your host:<br>' +
+        '<b>Recommended — Brevo</b> (free 300/day, no domain needed): <code>BREVO_API_KEY</code> + <code>BREVO_FROM</code> (your verified sender email).<br>' +
+        '<b>Alternative — Resend</b> (free 100/day): <code>RESEND_API_KEY</code> + <code>RESEND_FROM</code> (needs a verified domain).<br>' +
+        'Optionally <code>MAIL_FROM_NAME</code> (default "Zentra Bank"). Then redeploy.</p>';
 
     var statusPill = mailState.enabled
-      ? '<span class="pill green">ACTIVE · ' + U().esc(mailState.from) + '</span>'
+      ? '<span class="pill green">ACTIVE · ' + U().esc(mailState.provider) + '</span>'
       : '<span class="pill red">OFF · in-app only</span>';
 
     var opts = cust.users.map(function (u) {

@@ -51,7 +51,7 @@ ZB.forms = ZB.forms || {};
       hItem('Datastore', s.db_path + ' · ' + s.db_size_kb + ' KB', true) +
       hItem('Engine latency', s.latency_ms + ' ms scan', true) +
       hItem('Active sessions', String(s.active_sessions), s.active_sessions < 200) +
-      hItem('Outbound mail', s.mail && s.mail.enabled ? 'ACTIVE · from ' + s.mail.from : 'off (in-app only)', s.mail && s.mail.enabled) +
+      hItem('Outbound mail', s.mail && s.mail.enabled ? 'ACTIVE · ' + s.mail.provider + ' · ' + s.mail.from : 'off (in-app only)', s.mail && s.mail.enabled) +
       hItem('Platform', s.platform, true) +
       '</div>' +
 

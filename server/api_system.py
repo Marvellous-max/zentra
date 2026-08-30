@@ -9,6 +9,7 @@ import sys
 import time
 
 import authx
+import mail
 import routing
 import store
 from routing import route, ApiError
@@ -71,8 +72,9 @@ def status(ctx):
         },
         "flags": {k: bool(s.get(k)) for k in BOOL_KEYS},
         "mail": {
-            "enabled": bool(os.environ.get("SMTP_HOST")),
-            "from": os.environ.get("SMTP_FROM", "alerts@zentra.bank"),
+            "enabled": mail.available(),
+            "provider": mail.provider() or "off",
+            "from": mail.from_address() if mail.available() else "alerts@zentra.bank",
         },
     }
 
