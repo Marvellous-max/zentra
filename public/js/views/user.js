@@ -1067,7 +1067,8 @@ ZB.forms = ZB.forms || {};
         return '<div class="card mb-1" style="border-color:rgba(251,191,36,.35)"><div class="spread wrap">' +
           '<div><b>' + U().money(l.principal) + ' · ' + l.term_months + 'mo</b>' +
           '<div class="small muted mt-1">' + U().esc(l.purpose || 'No purpose given') + ' · requested ' + U().rel(l.created_at) + '</div></div>' +
-          '<span class="pill amber">Under review</span></div></div>';
+          '<div class="row" style="gap:10px;align-items:center"><span class="pill amber">Under review</span>' +
+          '<button class="btn sm ghost danger" data-withdraw-loan="' + l.id + '">' + U().icon('x', 13) + ' Withdraw</button></div></div></div>';
       }).join('') : '') +
       (heroLoan || pend.length ? '' :
         '<div class="card empty mb-2">' + U().icon('target', 32) +
@@ -1089,6 +1090,19 @@ ZB.forms = ZB.forms || {};
           btn.addEventListener('click', function () {
             repayModal(+btn.dataset.repay, parseFloat(btn.dataset.monthly), b.accounts);
           });
+        });
+        document.querySelectorAll('[data-withdraw-loan]').forEach(function (btn) {
+          btn.onclick = function () {
+            U().confirmBox('Withdraw this application?',
+              'The request leaves the review queue — nothing was ever disbursed or owed.',
+              'Yes, withdraw it', true, async function () {
+                try {
+                  await ZB.api.post('/api/user/loans/' + btn.dataset.withdrawLoan + '/cancel', {});
+                  U().toast('Application withdrawn');
+                  ZB.render();
+                } catch (e) { U().toast(e.message, 'err'); }
+              });
+          };
         });
       }
     };
@@ -1205,9 +1219,12 @@ ZB.forms = ZB.forms || {};
       '<span class="pill gray">' + txs.length + ' transactions</span></div>' +
       '<div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Description</th><th>Ref</th><th>Status</th><th class="num">Amount</th><th class="num">Balance</th></tr></thead><tbody>' +
       (txs.length ? txs.map(function (t) {
+        var cancelable = t.status === 'pending' && (t.type === 'deposit' || t.type === 'transfer_out');
         return '<tr><td class="small muted" style="white-space:nowrap">' + U().dateShort(t.created_at) + '</td>' +
           '<td><b class="small">' + U().esc(t.counterparty || t.type) + '</b>' +
-          (t.note ? '<div class="tiny faint">' + U().esc(t.note) + '</div>' : '') + '</td>' +
+          (t.note ? '<div class="tiny faint">' + U().esc(t.note) + '</div>' : '') +
+          (cancelable ? '<button class="btn sm ghost danger" data-cancel-tx="' + t.id + '" style="margin-top:6px">' +
+            U().icon('x', 13) + ' Cancel request</button>' : '') + '</td>' +
           '<td class="mono tiny">' + U().esc(t.ref) + '</td><td>' + U().pillFor(t.status) + '</td>' +
           '<td class="num"><b class="' + (t.amount > 0 ? 'up' : '') + ' small">' + U().signedMoney(t.amount, t.currency) + '</b></td>' +
           '<td class="num small muted">' + (t.balance_after != null ? U().money(t.balance_after, t.currency) : '—') + '</td></tr>';
@@ -1219,6 +1236,19 @@ ZB.forms = ZB.forms || {};
       mount: function () {
         document.querySelectorAll('[data-mo]').forEach(function (el) {
           el.addEventListener('click', function () { stmtMonth = el.dataset.mo; ZB.render(); });
+        });
+        document.querySelectorAll('[data-cancel-tx]').forEach(function (btn) {
+          btn.onclick = function () {
+            U().confirmBox('Cancel this request?',
+              'Only requests still awaiting approval can be withdrawn. Any held funds return to your balance instantly.',
+              'Yes, cancel it', true, async function () {
+                try {
+                  await ZB.api.post('/api/user/requests/' + btn.dataset.cancelTx + '/cancel', {});
+                  U().toast('Request cancelled');
+                  ZB.render();
+                } catch (e) { U().toast(e.message, 'err'); }
+              });
+          };
         });
         var sa = document.getElementById('st-acct');
         if (sa) sa.addEventListener('change', function () { stmtAcct = +sa.value; ZB.render(); });

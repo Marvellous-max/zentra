@@ -876,6 +876,87 @@ def repay_loan(ctx):
     return {"loan": loan_view(db, loan), "account": acct_brief(acct)}
 
 
+# --------------------------------------------- withdraw pending requests --
+@route("POST", "/api/user/requests/{id}/cancel", auth="user")
+def cancel_request(ctx):
+    """Customer withdraws their own request while it is still awaiting approval.
+
+    Covers pending top-ups (nothing moved yet) and pending external payouts
+    (the held amount + fee flows back into the balance immediately).
+    """
+    enforce_active(ctx)
+    db = ctx["db"]
+    try:
+        tid = int(ctx["params"]["id"])
+    except (TypeError, ValueError):
+        raise ApiError("Bad request id.", 400)
+    t = next((x for x in db["transactions"] if x["id"] == tid), None)
+    acct = store.find_account(db, t["account_id"]) if t else None
+    if not t or not acct or acct["user_id"] != ctx["user"]["id"]:
+        raise ApiError("Request not found.", 404)
+    if t["status"] != "pending":
+        raise ApiError("This request has already been processed and can no longer be cancelled.", 400)
+
+    cur = t.get("currency") or acct["currency"]
+    amt = store.fmt_money(abs(t["amount"]) - (t.get("fee") or 0), cur)
+    store.complete_pending(db, t["id"], approve=False)   # refunds outgoing holds
+    t["status"] = "cancelled"                            # customer-initiated ≠ rejected
+    t["note"] = ((t.get("note") or "") + " · cancelled by you")[:200]
+    t["cancelled_at"] = store.now_ms()
+
+    if t["type"] == "deposit":
+        store.notify_admins(db, "Top-up request withdrawn",
+                            "%s withdrew their %s top-up request before review."
+                            % (ctx["user"]["name"], amt))
+        store.notify(db, ctx["user"]["id"], "Top-up request cancelled",
+                     "Your %s top-up request was cancelled. Nothing left your account."
+                     % amt, link="#/app/statements")
+        store.audit(db, ctx["user"], "deposit.cancel", "txn:%d" % t["id"],
+                    severity="info", amount=abs(t["amount"]))
+    else:
+        store.notify_admins(db, "Payout request withdrawn",
+                            "%s cancelled their pending %s payout to %s — held funds "
+                            "returned to their balance." % (ctx["user"]["name"], amt,
+                                                            t.get("counterparty") or "external bank"))
+        store.notify(db, ctx["user"]["id"], "Payout cancelled",
+                     "Your %s payout to %s was cancelled and the funds are back in your %s."
+                     % (amt, t.get("counterparty") or "external bank", acct["label"]),
+                     link="#/app/statements")
+        store.audit(db, ctx["user"], "payout.cancel", "txn:%d" % t["id"],
+                    severity="info", amount=abs(t["amount"]))
+    return {"ok": True, "transaction": enrich_tx(db, t), "account": acct_brief(acct)}
+
+
+@route("POST", "/api/user/loans/{id}/cancel", auth="user")
+def cancel_loan_request(ctx):
+    """Customer withdraws a loan application that is still under review."""
+    enforce_active(ctx)
+    db = ctx["db"]
+    try:
+        lid = int(ctx["params"]["id"])
+    except (TypeError, ValueError):
+        raise ApiError("Bad loan id.", 400)
+    loan = store.find_loan(db, lid)
+    if not loan or loan["user_id"] != ctx["user"]["id"]:
+        raise ApiError("Loan not found.", 404)
+    if loan["status"] != "pending":
+        raise ApiError("Only applications still under review can be withdrawn.", 400)
+    acct = store.find_account(db, loan["account_id"])
+    cur = acct["currency"] if acct else "USD"
+    loan["status"] = "cancelled"
+    loan["closed_at"] = store.now_ms()
+    amt = store.fmt_money(loan["principal"], cur)
+    store.notify_admins(db, "Loan application withdrawn",
+                        "%s withdrew their %s loan application before review."
+                        % (ctx["user"]["name"], amt))
+    store.notify(db, ctx["user"]["id"], "Loan application withdrawn",
+                 "Your %s loan application was withdrawn — nothing was owed or disbursed." % amt,
+                 link="#/app/loans")
+    store.audit(db, ctx["user"], "loan.cancel", "loan:%d" % loan["id"],
+                severity="info", amount=loan["principal"])
+    return {"ok": True, "loan": loan}
+
+
 # ------------------------------------------------------------------- kyc --
 @route("POST", "/api/user/kyc", auth="user")
 def submit_kyc(ctx):

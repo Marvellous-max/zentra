@@ -247,23 +247,28 @@ ZB.forms = ZB.forms || {};
         : '<p class="small muted">No transactions.</p>');
 
     document.body.appendChild(ov);
-    ov.querySelector('#dw-close').onclick = closeDrawer;
+    // Crash-proof binder: conditional buttons (freeze/unfreeze, restrict/unrestrict)
+    // only exist in some states — a null lookup must never kill later bindings.
+    function bind(sel, fn) {
+      var el = ov.querySelector(sel);
+      if (el) el.onclick = fn;
+    }
+    bind('#dw-close', closeDrawer);
     ov.addEventListener('click', function (e) { if (e.target === ov) closeDrawer(); });
 
-    ov.querySelector('#dw-freeze').onclick = function () {
+    bind('#dw-freeze', function () {
       U().confirmBox('Freeze this customer?', 'They lose login access and all sessions die immediately.', 'Freeze account', true, async function () {
         await ZB.api.post('/api/admin/users/' + id + '/freeze', { frozen: true });
         U().toast('Account frozen'); closeDrawer(); ZB.render();
       });
-    };
-    ov.querySelector('#dw-unfreeze').onclick = async function () {
+    });
+    bind('#dw-unfreeze', async function () {
       try {
         await ZB.api.post('/api/admin/users/' + id + '/freeze', { frozen: false });
         U().toast('Account restored'); closeDrawer(); ZB.render();
       } catch (e) { U().toast(e.message, 'err'); }
-    };
-    var rBtn = ov.querySelector('#dw-restrict');
-    if (rBtn) rBtn.onclick = function () {
+    });
+    bind('#dw-restrict', function () {
       U().modal(
         '<div class="modal-head"><h3>Freeze transactions</h3>' +
         '<button class="icon-btn" data-x-close>' + U().icon('x', 16) + '</button></div>' +
@@ -281,19 +286,18 @@ ZB.forms = ZB.forms || {};
           closeDrawer(); ZB.render();
         } catch (e) { U().toast(e.message, 'err'); }
       };
-    };
-    var urBtn = ov.querySelector('#dw-unrestrict');
-    if (urBtn) urBtn.onclick = async function () {
+    });
+    bind('#dw-unrestrict', async function () {
       try {
         await ZB.api.post('/api/admin/users/' + id + '/restrict', { restricted: false });
         U().toast('Transactions restored for customer');
         closeDrawer(); ZB.render();
       } catch (e) { U().toast(e.message, 'err'); }
-    };
-    ov.querySelector('#dw-adjust').onclick = function () {
+    });
+    bind('#dw-adjust', function () {
       adjustModal(id, d.accounts, function () { closeDrawer(); ZB.render(); });
-    };
-    ov.querySelector('#dw-role').onclick = async function () {
+    });
+    bind('#dw-role', async function () {
       var newRole = u.role === 'admin' ? 'user' : 'admin';
       U().confirmBox((newRole === 'admin' ? 'Grant staff access?' : 'Revoke staff access?'),
         newRole === 'admin' ? u.name + ' will get full back-office and system-console powers.'
@@ -304,10 +308,9 @@ ZB.forms = ZB.forms || {};
             U().toast('Role updated'); closeDrawer(); ZB.render();
           } catch (e) { U().toast(e.message, 'err'); }
         });
-    };
-    var kb = ov.querySelector('#dw-kyc');
-    if (kb) kb.onclick = function () { kycModal(id, u.name, function () { closeDrawer(); ZB.render(); }); };
-    ov.querySelector('#dw-delete').onclick = function () {
+    });
+    bind('#dw-kyc', function () { kycModal(id, u.name, function () { closeDrawer(); ZB.render(); }); });
+    bind('#dw-delete', function () {
       U().confirmBox('Delete ' + u.name + ' permanently?',
         'This wipes their accounts, cards, loans and transaction history. There is no undo.',
         'Delete forever', true, async function () {
@@ -316,7 +319,7 @@ ZB.forms = ZB.forms || {};
             U().toast('Customer deleted'); closeDrawer(); ZB.render();
           } catch (e) { U().toast(e.message, 'err'); }
         });
-    };
+    });
   }
 
   function closeDrawer() {
