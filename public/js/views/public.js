@@ -863,7 +863,8 @@ ZB.forms = ZB.forms || {};
             name: data.name.trim(),
             email: data.email.trim(),
             password: data.password,
-            currency: data.currency
+            currency: data.currency,
+            pin: data.pin
           }).then(function (r) {
             ZB.api.setToken(r.token);
             ZB.state.user = r.user;
