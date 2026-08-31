@@ -103,8 +103,16 @@ def _post(url, payload, headers):
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
         headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=12) as resp:
-        return 200 <= resp.status < 300
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            return 200 <= resp.status < 300
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", "replace")[:200]
+        except Exception:
+            pass
+        raise RuntimeError("HTTP %s %s" % (e.code, body)) from None
 
 
 def _send_brevo(to_addr, subject, body_txt, body_html, sender):
