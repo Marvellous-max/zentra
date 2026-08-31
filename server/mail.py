@@ -99,7 +99,12 @@ def _text_to_html(body_txt):
 
 
 # ------------------------------------------------------------------ send ----
+BROWSER_UA = "Mozilla/5.0 (compatible; ZentraBankMailer/1.0; +https://zentraonline.dpdns.org)"
+
+
 def _post(url, payload, headers):
+    headers = dict(headers or {})
+    headers.setdefault("User-Agent", BROWSER_UA)   # Cloudflare bans "Python-urllib" UA (error 1010)
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
         headers=headers, method="POST")
