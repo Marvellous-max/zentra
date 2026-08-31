@@ -299,7 +299,10 @@ def create_account(ctx):
         raise ApiError("Unsupported account type.")
     acct = open_account(db, ctx["user"], label[:40], kind, currency)
     store.notify(db, ctx["user"]["id"], "%s account opened" % acct["label"],
-                 "Account %s is ready to use." % acct["number"])
+                 "Account %s is ready to use." % acct["number"], kind="success",
+                 cta="#/app/accounts",
+                 rows=[("Account", acct["label"]), ("Number", acct["number"]),
+                       ("Currency", acct["currency"])])
     store.audit(db, ctx["user"], "account.open", "account:%d" % acct["id"],
                 label=acct["label"], currency=currency, kind=kind)
     return {"account": acct_brief(acct)}
@@ -336,7 +339,11 @@ def deposit(ctx):
     store.notify(db, ctx["user"]["id"], "Top-up pending approval",
                  "%s into %s is being reviewed — you'll be notified once it lands."
                  % (store.fmt_money(amt, acct["currency"]), acct["label"]),
-                 link="#/app/statements")
+                 link="#/app/statements", kind="info",
+                 rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                       ("Method", labels[method].title()), ("Account", acct["label"]),
+                       ("Status", "Under review")],
+                 ref=t["ref"])
     store.audit(db, ctx["user"], "deposit.request", "txn:%d" % t["id"], severity="warn",
                 amount=amt, currency=acct["currency"], method=method)
     return {"pending": True, "transaction": enrich_tx(db, t), "account": acct_brief(acct)}
@@ -426,10 +433,18 @@ def transfer(ctx):
         store.notify(db, dest_user["id"], "Money received",
                      "%s sent you %s." % (_first(ctx["user"]["name"]),
                                           store.fmt_money(amt, dest["currency"])),
-                     link="#/app/statements")
+                     link="#/app/statements", kind="success",
+                     rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, dest["currency"])),
+                           ("From", ctx["user"]["name"]), ("Account", dest["label"]),
+                           ("New balance", store.fmt_money(dest["balance"], dest["currency"]))],
+                     ref=inn["ref"])
         store.notify(db, ctx["user"]["id"], "Transfer sent",
                      "%s to %s · %s completed." % (store.fmt_money(amt, acct["currency"]), name, to_bank),
-                     link="#/app/statements")
+                     link="#/app/statements", kind="success",
+                     rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                           ("To", name), ("Bank", to_bank),
+                           ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
+                     ref=out["ref"])
         store.audit(db, ctx["user"], "transfer.zentra", "txn:%d" % out["id"], amount=amt,
                     currency=acct["currency"], to=dest_user["email"],
                     bank=to_bank, acct_last4=dest["number"].replace(" ", "")[-4:])
@@ -478,13 +493,21 @@ def transfer(ctx):
                          "Your transfer of %s to %s is being reviewed by our team — "
                          "typical approval within a few hours."
                          % (store.fmt_money(amt, acct["currency"]), ben_name),
-                         link="#/app/statements")
+                         link="#/app/statements", kind="info",
+                         rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                               ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
+                               ("Status", "Under review")],
+                         ref=out["ref"])
             store.audit(db, ctx["user"], "payout.request", "txn:%d" % out["id"], amount=amt,
                         severity="warn", to=ben_name)
         else:
             store.notify(db, ctx["user"]["id"], "Payout sent",
                          "%s was sent to %s." % (store.fmt_money(amt, acct["currency"]), ben_name),
-                         link="#/app/statements")
+                         link="#/app/statements", kind="success",
+                         rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                               ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
+                               ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
+                         ref=out["ref"])
             store.audit(db, ctx["user"], "payout.sent", "txn:%d" % out["id"], amount=amt, to=ben_name)
         return {"ok": True, "pending": goes_pending, "account": acct_brief(acct),
                 "transactions": [enrich_tx(db, out)]}
@@ -579,7 +602,12 @@ def exchange(ctx):
                      pair=pair)
     store.notify(db, ctx["user"]["id"], "Exchange completed",
                  "%s → %s @ %.4f" % (store.fmt_money(amt, src["currency"]),
-                                     store.fmt_money(net, dst["currency"]), rate))
+                                     store.fmt_money(net, dst["currency"]), rate),
+                 kind="success",
+                 rows=[("You sent", store.fmt_money(amt, src["currency"])),
+                       ("You received", "<b>%s</b>" % store.fmt_money(net, dst["currency"])),
+                       ("Rate", "%.4f" % rate), ("Fee", "%.2f%%" % fee_pct)],
+                 ref=out["ref"])
     store.audit(db, ctx["user"], "exchange", "txn:%d" % out["id"], amount=amt,
                 frm=src["currency"], to=dst["currency"], rate=round(rate, 4))
     return {"ok": True, "account": acct_brief(src), "transactions": [enrich_tx(db, out), enrich_tx(db, inn)],
@@ -692,7 +720,10 @@ def new_card(ctx):
         store.post(db, acct, -fee, "fee", counterparty="Zentra Bank",
                    note="Physical card issue fee")
     store.notify(db, ctx["user"]["id"], "Card issued",
-                 "Your %s card \u2022%s is ready." % (ctype, card["last4"]))
+                 "Your %s card \u2022%s is ready." % (ctype, card["last4"]),
+                 kind="success", cta="#/app/cards",
+                 rows=[("Card", card["label"]), ("Number", card["masked"]),
+                       ("Brand", "Visa"), ("Type", "Virtual" if ctype == "virtual" else "Physical")])
     store.audit(db, ctx["user"], "card.issue", "card:%d" % card["id"], type=ctype)
     return {"card": card_view(card, reveal=True), "account": acct_brief(acct)}
 
@@ -770,7 +801,10 @@ def pay_bill(ctx):
                    note=("Customer ref %s" % ref_no) if ref_no else "", method="bill")
     store.notify(db, ctx["user"]["id"], "Payment successful",
                  "%s paid to %s." % (store.fmt_money(amt, acct["currency"]), biller),
-                 link="#/app/statements")
+                 link="#/app/statements", kind="success",
+                 rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                       ("Biller", biller[:80]), ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
+                 ref=t["ref"])
     store.audit(db, ctx["user"], "payment.bill", "txn:%d" % t["id"], amount=amt, biller=biller)
     return {"transaction": enrich_tx(db, t), "account": acct_brief(acct)}
 
@@ -871,7 +905,12 @@ def repay_loan(ctx):
         loan["status"] = "repaid"
         loan["closed_at"] = store.now_ms()
         store.notify(db, ctx["user"]["id"], "Loan settled 🎉",
-                     "Loan #%d is fully repaid. Congratulations!" % loan["id"])
+                     "Loan #%d is fully repaid. Congratulations!" % loan["id"],
+                     kind="success", cta="#/app/loans",
+                     rows=[("Loan", "#%d" % loan["id"]),
+                           ("Final payment", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
+                           ("Total repaid", store.fmt_money(loan["paid_total"], acct["currency"])),
+                           ("Status", "Settled")])
     store.audit(db, ctx["user"], "loan.repay", "loan:%d" % loan["id"], amount=amt)
     return {"loan": loan_view(db, loan), "account": acct_brief(acct)}
 
@@ -910,7 +949,10 @@ def cancel_request(ctx):
                             % (ctx["user"]["name"], amt))
         store.notify(db, ctx["user"]["id"], "Top-up request cancelled",
                      "Your %s top-up request was cancelled. Nothing left your account."
-                     % amt, link="#/app/statements")
+                     % amt, link="#/app/statements", kind="info",
+                     rows=[("Amount", amt), ("Method", (t.get("note") or "").replace("Top-up request · ", "").title() or "—"),
+                           ("Status", "Withdrawn by you")],
+                     ref=t["ref"])
         store.audit(db, ctx["user"], "deposit.cancel", "txn:%d" % t["id"],
                     severity="info", amount=abs(t["amount"]))
     else:
@@ -921,7 +963,10 @@ def cancel_request(ctx):
         store.notify(db, ctx["user"]["id"], "Payout cancelled",
                      "Your %s payout to %s was cancelled and the funds are back in your %s."
                      % (amt, t.get("counterparty") or "external bank", acct["label"]),
-                     link="#/app/statements")
+                     link="#/app/statements", kind="info",
+                     rows=[("Amount", "<b>%s</b>" % amt), ("Beneficiary", t.get("counterparty") or "—"),
+                           ("Status", "Withdrawn by you"), ("Funds", "Returned to balance")],
+                     ref=t["ref"])
         store.audit(db, ctx["user"], "payout.cancel", "txn:%d" % t["id"],
                     severity="info", amount=abs(t["amount"]))
     return {"ok": True, "transaction": enrich_tx(db, t), "account": acct_brief(acct)}
@@ -977,7 +1022,10 @@ def submit_kyc(ctx):
     store.notify_admins(ctx["db"], "KYC review needed",
                         "%s submitted a %s for verification." % (u["name"], doc_type.replace("_", " ")))
     store.notify(ctx["db"], u["id"], "Documents received",
-                 "We're verifying your identity — this usually takes under a day.")
+                 "We're verifying your identity — this usually takes under a day.",
+                 kind="info", cta="#/app/settings",
+                 rows=[("Document", doc_type.replace("_", " ").title()),
+                       ("Status", "Under review")])
     store.audit(ctx["db"], u, "kyc.submit", "user:%d" % u["id"], doc=doc_type)
     return {"user": store.public_user(u)}
 
@@ -1034,7 +1082,9 @@ def change_pin(ctx):
                 severity="warn")
     store.notify(ctx["db"], ctx["user"]["id"], "Transaction PIN changed",
                  "Your 4-digit transaction PIN was updated. If this wasn't you, "
-                 "contact support immediately.", link="#/app/settings")
+                 "contact support immediately.", link="#/app/settings", kind="critical",
+                 rows=[("Change", "Transaction PIN"), ("When", store.fmt_dt(store.now_ms())),
+                       ("Action", "Contact support if this wasn't you")])
     return {"ok": True}
 
 

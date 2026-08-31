@@ -208,7 +208,13 @@ def adjust_balance(ctx):
     store.notify(db, u["id"], "Balance adjusted",
                  "%s%s on your %s account · %s"
                  % ("+" if amt > 0 else "", store.fmt_money(amt, acct["currency"]),
-                    acct["label"], reason))
+                    acct["label"], reason), kind="success",
+                 rows=[("Adjustment", "<b>%s%s</b>" % ("+" if amt > 0 else "",
+                       store.fmt_money(amt, acct["currency"]))),
+                       ("Account", acct["label"]),
+                       ("New balance", store.fmt_money(acct["balance"], acct["currency"])),
+                       ("Reason", reason[:120])],
+                 ref=t["ref"])
     store.audit(db, ctx["user"], "admin.adjust_balance", "txn:%d" % t["id"],
                 severity="critical", user=u["email"], amount=amt,
                 currency=acct["currency"], reason=reason)
@@ -231,11 +237,16 @@ def freeze_user(ctx):
         store.audit(db, ctx["user"], "admin.freeze_user", "user:%d" % u["id"],
                     severity="warn")
         store.notify(db, u["id"], "Account frozen",
-                     "Your account has been temporarily frozen. Contact support for help.")
+                     "Your account has been temporarily frozen. Contact support for help.",
+                     kind="critical",
+                     rows=[("Login", "Blocked"), ("Sessions", "Signed out everywhere"),
+                           ("Funds", "Safe and untouched")])
     else:
         store.audit(db, ctx["user"], "admin.unfreeze_user", "user:%d" % u["id"])
         store.notify(db, u["id"], "Account restored",
-                     "Good news — your account is active again.")
+                     "Good news — your account is active again.", kind="success",
+                     rows=[("Login", "Restored"),
+                           ("Everything", "Back to normal")])
     return {"ok": True, "sessions_killed": killed}
 
 
@@ -384,13 +395,19 @@ def review_kyc(ctx):
     if decision == "approve":
         u["kyc_status"] = "verified"
         store.notify(db, u["id"], "Identity verified ✅",
-                     "Your identity check passed — every feature is now unlocked.")
+                     "Your identity check passed — every feature is now unlocked.",
+                     kind="success", cta="#/app/settings",
+                     rows=[("Status", "Verified"),
+                           ("Unlocked", "Loans, higher limits, instant payouts")])
         store.audit(db, ctx["user"], "admin.kyc_approve", "user:%d" % u["id"])
     elif decision == "reject":
         u["kyc_status"] = "rejected"
         u["kyc_note"] = note or "Document unreadable — please resubmit."
         store.notify(db, u["id"], "Verification needs attention",
-                     "We couldn't verify your document: %s" % u["kyc_note"])
+                     "We couldn't verify your document: %s" % u["kyc_note"],
+                     kind="warning", cta="#/app/settings",
+                     rows=[("Status", "Needs attention"), ("Reason", u["kyc_note"][:120]),
+                           ("Next step", "Re-upload a clearer document")])
         store.audit(db, ctx["user"], "admin.kyc_reject", "user:%d" % u["id"], severity="warn")
     else:
         raise ApiError("Decision must be approve or reject.")
@@ -540,7 +557,11 @@ def review_pending_tx(ctx):
             store.notify(db, u["id"], "Transaction approved",
                          "%s (%s) has been approved and completed · ref %s"
                          % (amt, target.get("counterparty") or "transfer", target["ref"]),
-                         link="#/app/statements")
+                         link="#/app/statements", kind="success",
+                         rows=[("Amount", "<b>%s</b>" % amt),
+                               ("Description", target.get("counterparty") or "transfer"),
+                               ("Status", "Completed")],
+                         ref=target["ref"])
         store.audit(db, ctx["user"], "admin.tx_approve", "txn:%d" % tid,
                     severity="critical", amount=abs(target["amount"]), ref=target["ref"])
     elif decision == "reject":
@@ -554,7 +575,10 @@ def review_pending_tx(ctx):
             store.notify(db, u["id"], "Transaction declined",
                          "%s was declined and any hold released to your balance · %s"
                          % (amt, reason),
-                         link="#/app/statements")
+                         link="#/app/statements", kind="critical",
+                         rows=[("Amount", "<b>%s</b>" % amt), ("Reason", reason[:120]),
+                               ("Funds", "Returned to your balance")],
+                         ref=target["ref"])
             if message:
                 store.notify(db, u["id"],
                              "Important: action required on your account",
@@ -608,7 +632,12 @@ def review_payout(ctx):
         store.complete_pending(db, tid, approve=True)
         if u:
             store.notify(db, u["id"], "Payout approved",
-                         "%s to %s is on its way." % (amt, target.get("counterparty")))
+                         "%s to %s is on its way." % (amt, target.get("counterparty")),
+                         kind="success",
+                         rows=[("Amount", "<b>%s</b>" % amt),
+                               ("Beneficiary", target.get("counterparty") or "—"),
+                               ("Status", "Approved — on its way")],
+                         ref=target["ref"])
         store.audit(db, ctx["user"], "admin.payout_approve", "txn:%d" % tid,
                     severity="critical", amount=abs(target["amount"]))
     elif decision == "reject":
@@ -621,7 +650,10 @@ def review_payout(ctx):
         if u:
             store.notify(db, u["id"], "Payout rejected",
                          "%s was returned to your account · %s"
-                         % (amt, reason or "contact support"))
+                         % (amt, reason or "contact support"), kind="critical",
+                         rows=[("Amount", "<b>%s</b>" % amt), ("Reason", (reason or "contact support")[:120]),
+                               ("Funds", "Returned to your balance")],
+                         ref=target["ref"])
             if message:
                 store.notify(db, u["id"], "Important: action required on your account",
                              message, link="#/app/support")
@@ -687,7 +719,13 @@ def review_loan(ctx):
         if u:
             store.notify(db, u["id"], "Loan approved 🎉",
                          "%s has been deposited into %s."
-                         % (store.fmt_money(loan["principal"], acct["currency"]), acct["label"]))
+                         % (store.fmt_money(loan["principal"], acct["currency"]), acct["label"]),
+                         kind="success", cta="#/app/loans",
+                         rows=[("Principal", "<b>%s</b>" % store.fmt_money(loan["principal"], acct["currency"])),
+                               ("Term", "%d months" % loan["term_months"]),
+                               ("APR", "%.1f%%" % loan["apr"]),
+                               ("Monthly payment", store.fmt_money(loan["monthly_payment"], acct["currency"])),
+                               ("Deposited to", acct["label"])])
         store.audit(db, ctx["user"], "admin.loan_approve", "loan:%d" % loan["id"],
                     severity="critical", amount=loan["principal"])
     elif decision == "reject":
@@ -696,7 +734,10 @@ def review_loan(ctx):
         loan["review_note"] = note or "Application declined."
         if u:
             store.notify(db, u["id"], "Loan application declined",
-                         "Reason: %s" % loan["review_note"])
+                         "Reason: %s" % loan["review_note"], kind="critical", cta="#/app/loans",
+                         rows=[("Application", "%s · %dm" % (store.fmt_money(loan["principal"], acct["currency"] if acct else "USD"), loan["term_months"])),
+                               ("Reason", loan["review_note"][:120]),
+                               ("Next step", "You can apply again anytime")])
         store.audit(db, ctx["user"], "admin.loan_reject", "loan:%d" % loan["id"], severity="warn")
     else:
         raise ApiError("Decision must be approve or reject.")

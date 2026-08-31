@@ -255,8 +255,17 @@ def fmt_dt(ms):
 
 
 # ---------------------------------------------------------------- notify ---
-def notify(db, user_id, title, body, created_at=None, link=""):
-    """Record a branded alert. `link` is an in-app route the customer can open."""
+def notify(db, user_id, title, body, created_at=None, link="", kind="info",
+           rows=None, cta=None, ref=None, greet=None):
+    """Record a branded alert. `link` is an in-app route the customer can open.
+
+    Email-specific extras (ignored by the in-app inbox):
+      kind:  success | info | warning | critical  (colour + chip in the email)
+      rows:  [(label, value)] structured detail table in the email
+      cta:   in-app route for the email button (defaults to `link`)
+      ref:   transaction reference shown in the email
+      greet: customer first name for the "Dear ___," salutation
+    """
     db["notifications"].append({
         "id": nid(), "user_id": user_id, "title": title, "body": body,
         "read": False, "created_at": created_at or now_ms(),
@@ -268,9 +277,9 @@ def notify(db, user_id, title, body, created_at=None, link=""):
         u = find_user(db, user_id)
         if u and u.get("email"):
             ok = mail.send(u["email"], title, body,
-                           body_html="<p>%s</p>" % str(body)
-                           .replace("&", "&amp;").replace("<", "&lt;")
-                           .replace(">", "&gt;"))
+                           kind=kind, rows=rows, ref=ref,
+                           cta=cta or (link or None),
+                           greet=greet or ((u.get("name") or "").split() or [""])[0])
             log_delivery(db, u["email"], title, ok)
     except Exception:
         pass

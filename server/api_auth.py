@@ -70,7 +70,9 @@ def register(ctx):
     store.notify(db, user["id"], "Welcome to %s 🎉" % db["settings"]["site_name"],
                  "Your %s account %s is open and ready. Add money to get started."
                  % (acct["label"], acct["number"]),
-                 link="#/app/accounts")
+                 link="#/app/accounts", kind="success", cta="#/app",
+                 rows=[("Account", acct["label"]), ("Number", acct["number"]),
+                       ("Currency", currency), ("Next step", "Make your first top-up")])
     store.audit(db, {"email": email}, "auth.register", "user:%d" % user["id"])
     return {"token": token, "user": store.public_user(user), "account": acct}
 
