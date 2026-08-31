@@ -29,7 +29,7 @@ _log = logging.getLogger("mail")
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 RESEND_URL = "https://api.resend.com/emails"
 
-DEFAULT_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "Zentra Bank")
+DEFAULT_FROM_NAME = os.environ.get("MAIL_FROM_NAME", "Zentra")
 
 
 def _env(name):
@@ -80,14 +80,14 @@ def _branded_html(inner_html):
         '<span style="color:#ffffff;font-size:20px;font-weight:bold;'
         'letter-spacing:-.01em">Zentra</span>'
         '<span style="display:block;color:#9fc3dd;font-size:12px;margin-top:2px">'
-        'Banking designed around you</span></div>'
+        'Secure account notifications</span></div>'
         '<div style="padding:24px;color:#1c3242;font-size:14px;line-height:1.65">'
         + inner_html +
         '</div>'
         '<div style="padding:14px 24px;background:#f7fafc;border-top:1px solid #dbe6ee;'
         'color:#7b93a6;font-size:11.5px;line-height:1.6">'
-        'Zentra Bank, N.A. &#183; Member FDIC &#183; Equal Housing Lender<br>'
-        'Manage alerts in your Zentra inbox. We will never ask for your password '
+        'You are receiving this message because you have a Zentra account.<br>'
+        'We will never email you asking for your password or PIN.'
         'or transaction PIN by email.</div>'
         '</div></div>'
     )
