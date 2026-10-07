@@ -155,7 +155,7 @@ ZB.forms = ZB.forms || {};
     var quick = [
       { act: 'add', icon: 'plus', t: ZB.t("Add money"), s: ZB.t("Request a top-up") },
       { go: '#/app/transfer', icon: 'send', t: ZB.t('Send'), s: ZB.t("Free inside Zentra") },
-      { go: '#/app/cards', icon: 'card', t: 'Cards', s: (ov.counts.cards || 0) + ' active' },
+      { go: '#/app/cards', icon: 'card', t: ZB.t("Cards"), s: ZB.t("{n} active", { n: ov.counts.cards || 0 }) },
       { go: '#/app/pay', icon: 'receipt', t: ZB.t("Pay a bill"), s: ZB.t("Utilities & more") }
     ].map(function (q) {
       var attrs = q.act === 'add' ? 'id="qa-add"' : 'data-go="' + q.go + '"';
@@ -294,6 +294,7 @@ ZB.forms = ZB.forms || {};
   async function accounts() {
     var r = await ZB.api.get('/api/user/accounts');
     var accts = r.accounts;
+    var pend = (await ZB.api.get('/api/user/wallet-requests?status=pending')).requests;
     if (!selectedAccount || !accts.some(function (a) { return a.id === selectedAccount; })) {
       selectedAccount = accts.length ? accts[0].id : null;
     }
@@ -310,6 +311,12 @@ ZB.forms = ZB.forms || {};
       "<div class=\"sub\">" + ZB.t("Multi-currency wallets with local account numbers.") + "</div></div>" +
       '<div class="head-actions"><button class="btn primary sm" id="open-acct-btn">' + U().icon('plus', 15) + " " + ZB.t("Open new account") + "</button></div></div>" +
 
+      pend.map(function (w) {
+        return '<div class="banner mb-1">' + U().icon('clock', 15) + ' ' +
+          ZB.t("Your {cur} wallet request is awaiting approval.", { cur: U().esc(w.currency) }) +
+          '</div>';
+      }).join('') +
+
       '<div class="acct-strip mb-2">' + accts.map(function (a) {
         var cls = a.kind === 'savings' ? 'savings' : (a.currency !== 'USD' ? 'fx' : '');
         return '<button class="acct-tile ' + cls +
@@ -318,7 +325,7 @@ ZB.forms = ZB.forms || {};
           '<div class="at-bal">' + U().money(a.balance, a.currency) + '</div>' +
           '<div class="row mt-1" style="justify-content:space-between;width:100%">' +
           '<span class="mono tiny muted">' + U().esc(a.number) + '</span>' +
-          '<span class="tiny muted">' + a.card_count + ' card' + (a.card_count === 1 ? '' : 's') + '</span></div></button>';
+          '<span class="tiny muted">' + (a.card_count === 1 ? ZB.t("1 card") : ZB.t("{n} cards", { n: a.card_count })) + '</span></div></button>';
       }).join('') + '</div>' +
 
       (cur ? '<div class="split">' +
@@ -392,9 +399,11 @@ ZB.forms = ZB.forms || {};
     });
     ZB.forms['u-open-acct'] = async function (data) {
       try {
-        await ZB.api.post('/api/user/accounts', Object.assign({}, data, { kind: kind }));
+        var res = await ZB.api.post('/api/user/accounts', Object.assign({}, data, { kind: kind }));
         U().closeModal();
-        U().toast(ZB.t("Account opened 🎉"));
+        U().toast(res && res.pending
+          ? ZB.t("Request sent — our team will review it")
+          : ZB.t("Account opened 🎉"));
         ZB.render();
       } catch (e) { U().toast(e.message, 'err'); }
     };
@@ -477,7 +486,7 @@ ZB.forms = ZB.forms || {};
       '<div class="seg mb-2" id="send-mode">' +
       "<button data-m=\"zentra\" class=\"active\">" + ZB.t("To someone") + "</button>" +
       "<button data-m=\"own\">" + ZB.t("Between mine") + "</button>" +
-      '<button data-m="external" ' + (b.flags.transfers_external_enabled ? '' : 'disabled') + '>External bank</button></div>' +
+      '<button data-m="external" ' + (b.flags.transfers_external_enabled ? '' : 'disabled') + '>' + ZB.t("External bank") + '</button></div>' +
       '<form data-form="u-transfer" id="transfer-form">' +
       '<div id="tf-fields">' + modeFields('zentra', b, accts, benList) + '</div>' +
       "<div class=\"field\"><label>" + ZB.t("Amount") + "</label><div class=\"amt-wrap\">" +
@@ -519,15 +528,15 @@ ZB.forms = ZB.forms || {};
       var amt = parseFloat(fd.get('amount')) || 0;
       var from = accts.filter(function (x) { return x.id === +(fd.get('from_account_id')); })[0];
       var rows = [];
-      if (from) rows.push(['From', U().esc(from.label + ' (' + from.currency + ')')]);
+      if (from) rows.push([ZB.t('From'), U().esc(from.label + ' (' + from.currency + ')')]);
       if (mode === 'own') {
         var to = accts.filter(function (x) { return x.id === +(fd.get('to_account_id')); })[0];
-        if (to) rows.push(['To', U().esc(to.label)]);
+        if (to) rows.push([ZB.t('To'), U().esc(to.label)]);
       } else if (mode === 'zentra') {
         var toNum = String(fd.get('to_account_number') || '').replace(/\s/g, '');
         rows.push([ZB.t('Recipient'), U().esc(fd.get('to_email') || '—')]);
         if (toNum) rows.push([ZB.t("Account No."), '<span class="mono">' + U().esc(toNum) + '</span>']);
-        rows.push(['Bank', U().esc(fd.get('to_bank_name') || ZB.t("Zentra Bank"))]);
+        rows.push([ZB.t('Bank'), U().esc(fd.get('to_bank_name') || ZB.t("Zentra Bank"))]);
         rows.push([ZB.t('Fee'), b.flags.transfers_internal_enabled ? ZB.t('Free') : 'n/a']);
       } else {
         var benId = fd.get('beneficiary_id');
@@ -649,7 +658,7 @@ ZB.forms = ZB.forms || {};
         summaryRows: [
           ['Amount', '<span style="font-size:16px">' + U().money(amt, cur) + '</span>'],
           ['To', U().esc(recipient)],
-          ['From', U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
+          [ZB.t('From'), U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
           [ZB.t('Fee'), feeText],
           [ZB.t('Note'), U().esc(data.note || '—')]
         ],
@@ -936,6 +945,17 @@ ZB.forms = ZB.forms || {};
 
   /* ================================================================ PAY */
   var chosenCategory = '';
+
+  function billName(c) {
+    var m = {
+      electricity: ZB.t("Electricity"), water: ZB.t("Water & Sewage"),
+      internet: ZB.t("Internet & TV"), airtime: ZB.t("Phone Airtime"),
+      rent: ZB.t("Rent"), insurance: ZB.t("Insurance"),
+      education: ZB.t("Education"), charity: ZB.t("Charity")
+    };
+    return m[c.key] || c.name;
+  }
+
   async function pay() {
     var b = await boot();
     var cat = await ZB.api.get('/api/user/pay/catalog');
@@ -944,7 +964,7 @@ ZB.forms = ZB.forms || {};
 
     var cats = cat.categories.map(function (c) {
       return '<button class="tile" data-cat="' + c.key + '">' +
-        '<span class="t-icon">' + U().icon(c.icon, 19) + '</span><b>' + U().esc(c.name) + '</b></button>';
+        '<span class="t-icon">' + U().icon(c.icon, 19) + '</span><b>' + U().esc(billName(c)) + '</b></button>';
     }).join('');
 
     var html =
@@ -998,10 +1018,10 @@ ZB.forms = ZB.forms || {};
             amountLabel: U().money(amt, cur),
             confirmLabel: ZB.t('Pay') + ' ' + U().money(amt, cur),
             summaryRows: [
-              ['Amount', '<span style="font-size:16px">' + U().money(amt, cur) + '</span>'],
-              ['Biller', U().esc(data.biller)],
-              ['Category', U().esc(chosenCategory || 'other')],
-              ['From', U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
+              [ZB.t('Amount'), '<span style="font-size:16px">' + U().money(amt, cur) + '</span>'],
+              [ZB.t('Biller'), U().esc(data.biller)],
+              [ZB.t('Category'), U().esc(billName({ key: chosenCategory, name: chosenCategory }) || ZB.t('other'))],
+              [ZB.t('From'), U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
               ['Ref', U().esc(data.customer_ref || '—')]
             ],
             run: async function (pin) {
@@ -1014,9 +1034,9 @@ ZB.forms = ZB.forms || {};
                 sub: ZB.t("To ") + data.biller,
                 ref: t.ref,
                 rows: [
-                  ['Date', U().dateTime(Date.now())],
-                  ['Category', U().esc(chosenCategory || 'other')],
-                  ['Status', "<span class=\"pill green\">" + ZB.t("Completed") + "</span>"]
+                  [ZB.t('Date'), U().dateTime(Date.now())],
+                  [ZB.t('Category'), U().esc(billName({ key: chosenCategory, name: chosenCategory }) || ZB.t('other'))],
+                  [ZB.t('Status'), "<span class=\"pill green\">" + ZB.t("Completed") + "</span>"]
                 ],
                 mail: ZB.t("keep this receipt for your records.")
               };

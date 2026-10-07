@@ -60,7 +60,8 @@ def register(ctx):
         "phone": "", "address": "", "country": b.get("country") or "",
         "hue": secrets.randbelow(360),
         "kyc_status": "unverified", "kyc_doc": "", "kyc_note": "", "kyc_submitted_at": None,
-        "prefs": {"email_alerts": True, "push_alerts": True},
+        "prefs": {"email_alerts": True, "push_alerts": True,
+                  "lang": ctx["lang"] if ctx["lang"] in store.LANGS else "en"},
         "suspended": False,
         "joined_at": store.now_ms(), "last_login_at": None,
     }
@@ -89,6 +90,12 @@ def login(ctx):
         raise ApiError("This account is suspended. Contact support.", 403)
     token = authx.issue_token(db, user["id"], ctx.get("ua", ""), ctx.get("ip", ""))
     user["last_login_at"] = store.now_ms()
+    prefs = user.get("prefs")
+    if not isinstance(prefs, dict):
+        prefs = {}
+        user["prefs"] = prefs
+    if ctx.get("lang") in store.LANGS:
+        prefs["lang"] = ctx["lang"]
     store.audit(db, user, "auth.login", "user:%d" % user["id"])
     return {"token": token, "user": store.public_user(user)}
 

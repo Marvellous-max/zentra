@@ -4,7 +4,7 @@ import routing
 import authx
 import store
 from api_user import (acct_brief, enrich_tx, safe_int, user_tx_query,
-                      check_maintenance)
+                      check_maintenance, open_account)
 from routing import route, ApiError
 
 
@@ -73,6 +73,8 @@ def overview(ctx):
     pend_loans = [l for l in db["loans"] if l["status"] == "pending"]
     pend_kyc = [u for u in users if u.get("kyc_status") == "pending"]
     open_msgs = [m for m in db["messages"] if m.get("status") == "open"]
+    pend_wallets = [r for r in db.get("wallet_requests", [])
+                    if r["status"] == "pending"]
 
     recent_audit = sorted(db["audit"], key=lambda a: a["ts"], reverse=True)[:8]
     latest_users = sorted(customers, key=lambda u: u["joined_at"], reverse=True)[:5]
@@ -98,7 +100,7 @@ def overview(ctx):
         "queues": {
             "payouts": len(pend_payouts), "topups": len(pend_topups),
             "loans": len(pend_loans), "kyc": len(pend_kyc),
-            "messages": len(open_msgs),
+            "messages": len(open_msgs), "wallets": len(pend_wallets),
             "declined_open": sum(1 for l in db.get("declined_logs", [])
                                  if not l.get("resolved")),
         },
@@ -737,6 +739,77 @@ def review_loan(ctx):
     else:
         raise ApiError("Decision must be approve or reject.")
     return {"ok": True}
+
+
+# ------------------------------------------------------- wallet requests --
+@route("GET", "/api/admin/wallet-requests", auth="admin")
+def wallet_requests_list(ctx):
+    db = ctx["db"]
+    status = ctx["query"].get("status") or ""
+    rows = []
+    for r in db.get("wallet_requests", []):
+        if status and r["status"] != status:
+            continue
+        d = dict(r)
+        u = store.find_user(db, r["user_id"]) or {}
+        d["user_name"] = u.get("name", "?")
+        d["user_email"] = u.get("email", "?")
+        d["held_count"] = len(store.user_accounts(db, r["user_id"]))
+        rows.append(d)
+    rows.sort(key=lambda r: (0 if r["status"] == "pending" else 1, -r["created_at"]))
+    return {"requests": rows[:80]}
+
+
+@route("POST", "/api/admin/wallet-requests/{id}/review", auth="admin")
+def review_wallet_request(ctx):
+    check_maintenance(ctx)
+    db = ctx["db"]
+    req = store.find_wallet_request(db, int(ctx["params"]["id"]))
+    if not req:
+        raise ApiError("Wallet request not found.", 404)
+    if req["status"] != "pending":
+        raise ApiError("Only pending wallet requests can be reviewed.")
+    decision = ctx["body"].get("decision")
+    note = (ctx["body"].get("note") or "").strip()[:140]
+    u = store.find_user(db, req["user_id"])
+    if not u:
+        raise ApiError("Customer not found.", 404)
+    if decision == "approve":
+        if len(store.user_accounts(db, u["id"])) >= 6:
+            raise ApiError("This customer already holds the maximum of 6 accounts.")
+        req["status"] = "approved"
+        req["decided_at"] = store.now_ms()
+        req["decided_by"] = ctx["user"]["id"]
+        req["reason"] = note
+        acct = open_account(db, u, req["label"], req["kind"], req["currency"])
+        req["account_id"] = acct["id"]
+        store.notify(db, u["id"], "Wallet opened", "Your %s wallet is ready to use.",
+                     args=(req["currency"],),
+                     kind="success", cta="#/app/accounts",
+                     rows=[("Currency", req["currency"]), ("Account", acct["label"]),
+                           ("Number", acct["number"])])
+        store.audit(db, ctx["user"], "admin.wallet_request_approve",
+                    "wallet_request:%d" % req["id"], severity="critical",
+                    label=acct["label"], currency=req["currency"], kind=req["kind"])
+        return {"ok": True, "account": acct_brief(acct)}
+    elif decision == "reject":
+        reason = note or "Wallet request declined."
+        req["status"] = "declined"
+        req["decided_at"] = store.now_ms()
+        req["decided_by"] = ctx["user"]["id"]
+        req["reason"] = reason
+        store.log_declined(db, req["user_id"], "wallet", reason,
+                           "Request for a %s %s wallet" % (req["currency"], req["kind"]))
+        store.notify(db, u["id"], "Wallet request declined", "Reason: %s",
+                     args=(reason,),
+                     kind="critical", cta="#/app/accounts",
+                     rows=[("Currency", req["currency"]), ("Reason", reason[:120]),
+                           ("Next step", "You can request it again anytime")])
+        store.audit(db, ctx["user"], "admin.wallet_request_reject",
+                    "wallet_request:%d" % req["id"], severity="warn",
+                    currency=req["currency"], kind=req["kind"])
+        return {"ok": True}
+    raise ApiError("Decision must be approve or reject.")
 
 
 # ------------------------------------------------------------- messages ----

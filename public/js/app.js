@@ -41,19 +41,21 @@ ZB.timers = [];
     '/register': function (q) { return ZB.views.public.register(q); }
   };
 
-  var PUB_TITLES = {
-    '/': ZB.t("Zentra Bank | No-Fee Checking & High-Yield Savings"),
-    '/personal': ZB.t("Personal Banking"),
-    '/business': ZB.t("Business Banking"),
-    '/pricing': ZB.t("Rates & Fees"),
-    '/rates': ZB.t("Rates & Fees"),
-    '/security': 'Security',
-    '/support': ZB.t("Contact Us"),
-    '/about': ZB.t("About Us"),
-    '/legal': ZB.t("Legal & Disclosures"),
-    '/login': ZB.t("Sign In"),
-    '/register': ZB.t("Open an Account")
-  };
+  function PUB_TITLES() {
+    return {
+      '/': ZB.t("Zentra Bank | No-Fee Checking & High-Yield Savings"),
+      '/personal': ZB.t("Personal Banking"),
+      '/business': ZB.t("Business Banking"),
+      '/pricing': ZB.t("Rates & Fees"),
+      '/rates': ZB.t("Rates & Fees"),
+      '/security': ZB.t("Security"),
+      '/support': ZB.t("Contact Us"),
+      '/about': ZB.t("About Us"),
+      '/legal': ZB.t("Legal & Disclosures"),
+      '/login': ZB.t("Sign In"),
+      '/register': ZB.t("Open an Account")
+    };
+  }
 
   var USER_PAGES = {
     '/app': function (q) { return ZB.views.user.overview(q); },
@@ -113,7 +115,8 @@ ZB.timers = [];
       '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6h11l-7.5 5h7.5L8 18"/></svg></span>';
   }
 
-  var NAVS = {
+  function NAVS() {
+    return {
     user: [
       { group: ZB.t("Banking") },
       { href: '#/app', label: ZB.t("Overview"), icon: 'grid' },
@@ -152,7 +155,8 @@ ZB.timers = [];
       { href: '#/system/backups', label: ZB.t("Backups & data"), icon: 'database' },
       { href: '#/system/audit', label: ZB.t("System audit"), icon: 'shieldOff' }
     ]
-  };
+    };
+  }
 
   function sideNav(items, active) {
     return items.map(function (it) {
@@ -175,7 +179,7 @@ ZB.timers = [];
   function shell(kind, activePath, title, contentHtml, extraClass) {
     var u = ZB.state.user || {};
     var hue = typeof u.hue === 'number' ? u.hue : 140;
-    var nav = NAVS[kind] || [];
+    var nav = NAVS()[kind] || [];
     var html =
       '<div class="shell">' +
       '<aside class="sidebar">' +
@@ -327,7 +331,7 @@ ZB.timers = [];
       if (my !== seq) return;
 
       if (def.kind === 'pub') {
-        document.title = ZB.t((page && page.title) || PUB_TITLES[t.path] || ZB.t("Zentra Bank"));
+        document.title = (page && page.title) ? ZB.t(page.title) : (PUB_TITLES()[t.path] || ZB.t("Zentra Bank"));
         appEl.innerHTML = page.html;
       } else {
         var title = (page && page.title) || 'Zentra';

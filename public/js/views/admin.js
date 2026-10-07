@@ -67,6 +67,7 @@ ZB.forms = ZB.forms || {};
       '<div><div class="card mb-2"><div class="card-title"><h3>Approval queues</h3></div>' +
       queueRow('#/admin/approvals?type=topups', 'download', 'Top-ups waiting', q.topups, 'amber') +
       queueRow('#/admin/approvals?type=payouts', 'send', 'Payouts waiting', q.payouts, 'amber') +
+      queueRow('#/admin/approvals?type=wallets', 'wallet', 'Wallet requests', q.wallets, 'amber') +
       queueRow('#/admin/declined?resolved=0', 'x', 'Declined / blocked', q.declined_open || 0, 'red') +
       queueRow('#/admin/loans', 'target', 'Loan decisions', q.loans) +
       queueRow('#/admin/kyc', 'shield', 'Identity checks', q.kyc) +
@@ -875,12 +876,46 @@ ZB.forms = ZB.forms || {};
       });
   }
 
+  function approveWallet(id) {
+    U().confirmBox('Open this wallet?',
+      'The account is created immediately and the customer is notified that it is ready to use.',
+      'Approve', false, async function () {
+        try {
+          await ZB.api.post('/api/admin/wallet-requests/' + id + '/review', { decision: 'approve' });
+          U().toast('Wallet opened & customer notified ✅');
+          ZB.render();
+        } catch (e) { U().toast(e.message, 'err'); }
+      });
+  }
+
+  function declineWalletModal(id, currency, customer) {
+    U().modal(
+      '<div class="modal-head"><h3>Decline ' + U().esc(currency || '') + ' wallet request</h3>' +
+      '<button class="icon-btn" data-x-close>' + U().icon('x', 16) + '</button></div>' +
+      '<p class="small muted mb-2">The request is logged in the declined log and <b>' +
+      U().esc(customer || 'the customer') + '</b> is notified. They can request it again at any time.</p>' +
+      '<form data-form="adm-wallet-decline">' +
+      '<div class="field"><label>Reason shown to the customer</label>' +
+      '<input class="input" name="note" required placeholder="Additional verification required for this currency"></div>' +
+      '<button class="btn solid-danger block" type="submit">' + U().icon('x', 15) + ' Decline request</button></form>');
+    ZB.forms['adm-wallet-decline'] = async function (data) {
+      try {
+        await ZB.api.post('/api/admin/wallet-requests/' + id + '/review',
+          { decision: 'reject', note: data.note });
+        U().closeModal();
+        U().toast('Wallet request declined — customer notified');
+        ZB.render();
+      } catch (e) { U().toast(e.message, 'err'); }
+    };
+  }
+
   async function approvals(q) {
     var r = await ZB.api.get('/api/admin/transactions?status=pending&per=100');
     var rows = r.transactions;
     var topups = rows.filter(function (t) { return t.type === 'deposit'; });
     var payoutsL = rows.filter(function (t) { return t.type === 'transfer_out'; });
     var other = rows.filter(function (t) { return t.type !== 'deposit' && t.type !== 'transfer_out'; });
+    var wallets = (await ZB.api.get('/api/admin/wallet-requests?status=pending')).requests;
     var focus = q && q.type ? q.type : '';
 
     function group(title, icon, list, render) {
@@ -899,19 +934,33 @@ ZB.forms = ZB.forms || {};
         '<button class="btn primary sm" data-appr="' + t.id + '">' + U().icon('check', 14) + ' Approve</button>' +
         '<button class="btn danger sm" data-decl="' + t.id + '" data-ref="' + U().esc(t.ref) + '" data-cust="' + U().esc(t.user_name) + '">' + U().icon('x', 14) + ' Decline</button></div></div>';
     }
+    function walletCard(x) {
+      return '<div class="card mb-1" style="border-color:rgba(251,191,36,.35)"><div class="spread wrap">' +
+        '<div><b>' + U().esc(x.currency) + ' ' + U().esc(x.kind) + ' wallet → ' + U().esc(x.user_name) + '</b>' +
+        '<div class="small muted mt-1">' + U().esc(x.label) + ' · customer holds ' + x.held_count +
+        ' wallet' + (x.held_count === 1 ? '' : 's') + '</div>' +
+        '<div class="tiny faint mt-1">' + U().dateTime(x.created_at) + ' · <span class="mono">' + U().esc(x.ref) + '</span></div></div>' +
+        '<div class="row" style="gap:8px">' +
+        '<button class="btn primary sm" data-wapp="' + x.id + '">' + U().icon('check', 14) + ' Approve</button>' +
+        '<button class="btn danger sm" data-wdecl="' + x.id + '" data-cur="' + U().esc(x.currency) +
+        '" data-cust="' + U().esc(x.user_name) + '">' + U().icon('x', 14) + ' Decline</button></div></div>';
+    }
 
+    var total = rows.length + wallets.length;
     var html =
       pageHead('Approvals', 'Every pending money movement in one place — approve it, or decline it with a branded email explaining what the customer must do.') +
       '<div class="row mb-2" style="gap:8px">' +
-      ['<a class="pill ' + (!focus ? 'navy plain' : 'gray') + '" href="#/admin/approvals">All (' + rows.length + ')</a>',
+      ['<a class="pill ' + (!focus ? 'navy plain' : 'gray') + '" href="#/admin/approvals">All (' + total + ')</a>',
        '<a class="pill ' + (focus === 'topups' ? 'navy plain' : 'gray') + '" href="#/admin/approvals?type=topups">Top-ups (' + topups.length + ')</a>',
        '<a class="pill ' + (focus === 'payouts' ? 'navy plain' : 'gray') + '" href="#/admin/approvals?type=payouts">Payouts (' + payoutsL.length + ')</a>',
+       '<a class="pill ' + (focus === 'wallets' ? 'navy plain' : 'gray') + '" href="#/admin/approvals?type=wallets">Wallets (' + wallets.length + ')</a>',
        '<a class="pill ' + (focus === 'other' ? 'navy plain' : 'gray') + '" href="#/admin/approvals?type=other">Other (' + other.length + ')</a>'
       ].join(' ') + '</div>' +
-      (!rows.length ? '<div class="empty card">' + U().icon('check', 32) + '<b>All clear</b>No transactions waiting for review.</div>' :
-        (focus !== 'payouts' && focus !== 'other' ? group('Top-ups awaiting approval', 'download', topups, txCard) : '') +
-        (focus !== 'topups' && focus !== 'other' ? group('Payouts awaiting approval', 'send', payoutsL, txCard) : '') +
-        (focus !== 'topups' && focus !== 'payouts' ? group('Other pending items', 'clock', other, txCard) : ''));
+      (!total ? '<div class="empty card">' + U().icon('check', 32) + '<b>All clear</b>No transactions waiting for review.</div>' :
+        (focus !== 'payouts' && focus !== 'wallets' && focus !== 'other' ? group('Top-ups awaiting approval', 'download', topups, txCard) : '') +
+        (focus !== 'topups' && focus !== 'wallets' && focus !== 'other' ? group('Payouts awaiting approval', 'send', payoutsL, txCard) : '') +
+        (focus !== 'topups' && focus !== 'payouts' && focus !== 'other' ? group('Wallet requests awaiting approval', 'wallet', wallets, walletCard) : '') +
+        (focus !== 'topups' && focus !== 'payouts' && focus !== 'wallets' ? group('Other pending items', 'clock', other, txCard) : ''));
 
     return {
       html: html, title: 'Approvals',
@@ -924,6 +973,14 @@ ZB.forms = ZB.forms || {};
             declineMailModal(btn.dataset.decl, btn.dataset.ref, btn.dataset.cust);
           });
         });
+        document.querySelectorAll('[data-wapp]').forEach(function (btn) {
+          btn.addEventListener('click', function () { approveWallet(btn.dataset.wapp); });
+        });
+        document.querySelectorAll('[data-wdecl]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            declineWalletModal(btn.dataset.wdecl, btn.dataset.cur, btn.dataset.cust);
+          });
+        });
       }
     };
   }
@@ -933,7 +990,7 @@ ZB.forms = ZB.forms || {};
     var resolvedF = q && q.resolved !== undefined ? q.resolved : '';
     var r = await ZB.api.get('/api/admin/declined-logs' + (resolvedF !== '' ? '?resolved=' + resolvedF : ''));
     var kindPill = { attempt: ['red', 'Blocked attempt'], transaction: ['amber', 'Declined txn'],
-                     account: ['violet', 'Account freeze'] };
+                     account: ['violet', 'Account freeze'], wallet: ['amber', 'Wallet request'] };
     var html =
       pageHead('Declined log', 'Every declined or blocked movement — with a one-click branded email telling the customer what to do next.') +
       '<div class="row mb-2" style="gap:10px">' +

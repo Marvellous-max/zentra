@@ -82,6 +82,7 @@ def new_db():
         "meta": {"next_id": 1, "version": "1.0.0"},
         "users": [], "sessions": [], "accounts": [], "cards": [],
         "transactions": [], "beneficiaries": [], "loans": [],
+        "wallet_requests": [],
         "notifications": [], "messages": [], "broadcasts": [],
         "deliveries": [], "audit": [], "settings": {},
     }
@@ -263,6 +264,20 @@ def user_accounts(db, uid):
     return [a for a in db["accounts"] if a["user_id"] == uid]
 
 
+def find_wallet_request(db, rid):
+    for r in db.get("wallet_requests", []):
+        if r["id"] == rid:
+            return r
+    return None
+
+
+def user_wallet_requests(db, uid, status=None):
+    rows = [r for r in db.get("wallet_requests", []) if r["user_id"] == uid]
+    if status:
+        rows = [r for r in rows if r["status"] == status]
+    return rows
+
+
 def public_user(u):
     d = dict(u)
     d.pop("password", None)
@@ -307,7 +322,7 @@ def fmt_dt(ms):
 
 # ---------------------------------------------------------------- notify ---
 def notify(db, user_id, title, body, created_at=None, link="", kind="info",
-           rows=None, cta=None, ref=None, greet=None):
+           rows=None, cta=None, ref=None, greet=None, args=(), title_args=None):
     """Record a branded alert. `link` is an in-app route the customer can open.
 
     Email-specific extras (ignored by the in-app inbox):
@@ -322,8 +337,11 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
     """
     u = find_user(db, user_id)
     lang = ((u or {}).get("prefs") or {}).get("lang") or "en"
-    title = T(lang, title)
-    body = T(lang, body)
+    title = T(lang, title, *(args if title_args is None else title_args))
+    body = T(lang, body, *args)
+    if rows:
+        rows = [(T(lang, k), T(lang, v) if isinstance(v, str) else v)
+                for k, v in rows]
     db["notifications"].append({
         "id": nid(), "user_id": user_id, "title": title, "body": body,
         "read": False, "created_at": created_at or now_ms(),

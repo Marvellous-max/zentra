@@ -296,15 +296,56 @@ def create_account(ctx):
         raise ApiError("Unsupported currency.")
     if kind not in ("checking", "savings"):
         raise ApiError("Unsupported account type.")
+    if currency not in {a["currency"] for a in mine}:
+        return request_wallet(ctx, db, mine, kind, currency, label[:40])
     acct = open_account(db, ctx["user"], label[:40], kind, currency)
-    store.notify(db, ctx["user"]["id"], store.T(ctx["lang"], "%s account opened", acct["label"]),
-                 store.T(ctx["lang"], "Account %s is ready to use.", acct["number"]), kind="success",
+    store.notify(db, ctx["user"]["id"], "%s account opened",
+                 "Account %s is ready to use.",
+                 title_args=(acct["label"],), args=(acct["number"],), kind="success",
                  cta="#/app/accounts",
                  rows=[("Account", acct["label"]), ("Number", acct["number"]),
                        ("Currency", acct["currency"])])
     store.audit(db, ctx["user"], "account.open", "account:%d" % acct["id"],
                 label=acct["label"], currency=currency, kind=kind)
     return {"account": acct_brief(acct)}
+
+
+def request_wallet(ctx, db, mine, kind, currency, label):
+    """A currency the customer does not hold yet needs admin sign-off."""
+    user = ctx["user"]
+    if store.user_wallet_requests(db, user["id"], status="pending"):
+        raise ApiError("You already have a wallet request waiting for review.")
+    db.setdefault("wallet_requests", [])
+    req = {
+        "id": store.nid(), "ref": store.ref_code("WR"),
+        "user_id": user["id"], "kind": kind, "currency": currency,
+        "label": label, "status": "pending", "reason": "",
+        "created_at": store.now_ms(), "decided_at": None, "decided_by": None,
+        "account_id": None, "held_count": len(mine),
+    }
+    db["wallet_requests"].append(req)
+    kind_label = "Savings" if kind == "savings" else "Checking"
+    store.notify(db, user["id"], "Wallet request received",
+                 "Your %s wallet is with our team — we'll notify you once it's reviewed.",
+                 args=(currency,),
+                 kind="info", cta="#/app/accounts",
+                 rows=[("Currency", currency), ("Type", kind_label),
+                       ("Status", "Pending")])
+    store.notify_admins(db, "Wallet request for review",
+                        "%s asked to open a %s %s wallet (now holds %d)."
+                        % (user["name"], currency, kind, len(mine)))
+    store.audit(db, user, "wallet_request.create", "wallet_request:%d" % req["id"],
+                label=label, currency=currency, kind=kind)
+    return {"request": req, "pending": True}
+
+
+@route("GET", "/api/user/wallet-requests", auth="user")
+def list_wallet_requests(ctx):
+    db = ctx["db"]
+    status = ctx["query"].get("status") or ""
+    rows = [r for r in store.user_wallet_requests(db, ctx["user"]["id"])
+            if not status or r["status"] == status]
+    return {"requests": list(reversed(rows))[:20]}
 
 
 # --------------------------------------------------------------- deposit --
@@ -336,7 +377,8 @@ def deposit(ctx):
                         % (ctx["user"]["name"], labels[method].lower(),
                            store.fmt_money(amt, acct["currency"]), acct["label"]))
     store.notify(db, ctx["user"]["id"], "Top-up pending approval",
-                 store.T(ctx["lang"], "%s into %s is being reviewed — you'll be notified once it lands.", *(store.fmt_money(amt, acct["currency"]), acct["label"])),
+                 "%s into %s is being reviewed — you'll be notified once it lands.",
+                 args=(store.fmt_money(amt, acct["currency"]), acct["label"]),
                  link="#/app/statements", kind="info",
                  rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                        ("Method", labels[method].title()), ("Account", acct["label"]),
@@ -450,7 +492,7 @@ def transfer(ctx):
         check_flags(ctx, "transfers_external_enabled", "External transfers")
         s = db["settings"]
         ben_name = (b.get("beneficiary_name") or "").strip()
-        ben_bank = (b.get("beneficiary_bank") or "").strip() or "External bank"
+        ben_bank = (b.get("beneficiary_bank") or "").strip() or store.T(ctx["lang"], "External bank")
         ben_num = (b.get("beneficiary_number") or "").strip()
         ben_id = b.get("beneficiary_id")
         if ben_id:
@@ -523,7 +565,7 @@ def list_beneficiaries(ctx):
 def add_beneficiary(ctx):
     b = ctx["body"]
     name = (b.get("name") or "").strip()
-    bank = (b.get("bank") or "").strip() or "External bank"
+    bank = (b.get("bank") or "").strip() or store.T(ctx["lang"], "External bank")
     num = (b.get("account_number") or "").strip()
     if len(name) < 2 or len(num) < 4:
         raise ApiError("Beneficiary needs at least a name and account number.")

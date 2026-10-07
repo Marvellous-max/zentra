@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import sys
+import ast
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -294,9 +295,47 @@ def main():
     q = call("GET", "/api/user/exchange/quote", token=tok,
              query={"from": "USD", "to": "KRW", "amount": "100"})
     check("KRW quote math", abs(q["gross"] - 135000.0) < 1.0, q)
+    r = call("POST", "/api/user/accounts", {"kind": "savings", "currency": "USD"},
+             token=tok)
+    check("same currency opens instantly", r["account"]["currency"] == "USD", r)
     krw = call("POST", "/api/user/accounts", {"kind": "checking", "currency": "KRW"},
                token=tok)
-    check("KRW account opens", krw["account"]["currency"] == "KRW", krw)
+    check("new currency gates into a request",
+          krw.get("pending") is True and krw["request"]["currency"] == "KRW", krw)
+    wr_id = krw["request"]["id"]
+    check("wallet request is tracked",
+          store.find_wallet_request(db, wr_id)["status"] == "pending")
+    dup = None
+    try:
+        call("POST", "/api/user/accounts", {"kind": "savings", "currency": "KRW"},
+             token=tok)
+    except routing.ApiError as e:
+        dup = e.message
+    check("second request blocked while pending",
+          dup is not None and "waiting for review" in dup, dup)
+    listed = call("GET", "/api/admin/wallet-requests", token=atok,
+                  query={"status": "pending"})
+    check("admin sees pending wallet request",
+          any(x["id"] == wr_id for x in listed["requests"]), listed)
+    ok = call("POST", "/api/admin/wallet-requests/%d/review" % wr_id,
+              {"decision": "approve", "note": "Approved"}, token=atok)
+    check("approval creates the wallet", ok["account"]["currency"] == "KRW", ok)
+    check("approved request is closed",
+          store.find_wallet_request(db, wr_id)["status"] == "approved")
+
+    gbp = call("POST", "/api/user/accounts", {"kind": "checking", "currency": "GBP"},
+               token=tok)
+    gb_id = gbp["request"]["id"]
+    call("POST", "/api/admin/wallet-requests/%d/review" % gb_id,
+         {"decision": "reject", "note": "Not available in your region"}, token=atok)
+    check("declined request is closed",
+          store.find_wallet_request(db, gb_id)["status"] == "declined")
+    check("decline lands in the declined log",
+          any(l.get("reason") == "Not available in your region"
+              for l in call("GET", "/api/admin/declined-logs", token=atok)["logs"]))
+    check("customer can request again after a decline",
+          call("POST", "/api/user/accounts", {"kind": "checking", "currency": "GBP"},
+               token=tok).get("pending") is True)
     check("KRW formats without decimals",
           store.fmt_money(1234, "KRW") == "₩1,234", store.fmt_money(1234, "KRW"))
     check("USD still formats with 2 decimals",
@@ -399,7 +438,8 @@ def main():
     uid_demo = users["users"][0]["id"]
 
     detail = call("GET", "/api/admin/users/%d" % uid_demo, token=tok_adm)
-    check("admin user detail", len(detail["accounts"]) == 4 and detail["sessions"] >= 1)
+    check("admin user detail", len(detail["accounts"]) == 5 and detail["sessions"] >= 1,
+          len(detail["accounts"]))
 
     # adjust balance with reason
     acc0 = detail["accounts"][0]
@@ -714,6 +754,31 @@ def main():
           == ko.get("Insufficient funds."))
     check("T tolerates None language", store.T(None, "Insufficient funds.") == "Insufficient funds.")
 
+    server_keys = set()
+    for fname in ("api_user.py", "api_admin.py", "api_auth.py", "api_system.py",
+                  "api_public.py", "store.py", "mail.py", "app.py"):
+        tree = ast.parse(open(os.path.join(HERE, fname), encoding="utf-8").read())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            if (name == "T" and len(node.args) >= 2
+                    and isinstance(node.args[1], ast.Constant)
+                    and isinstance(node.args[1].value, str)):
+                server_keys.add(node.args[1].value)
+            elif (name == "ApiError" and node.args
+                  and isinstance(node.args[0], ast.Constant)
+                  and isinstance(node.args[0].value, str)):
+                server_keys.add(node.args[0].value)
+            elif name == "notify":
+                for i in (2, 3):
+                    if (len(node.args) > i and isinstance(node.args[i], ast.Constant)
+                            and isinstance(node.args[i].value, str)):
+                        server_keys.add(node.args[i].value)
+    untranslated = sorted(k for k in server_keys if k not in ko)
+    check("every server i18n key is translated", not untranslated, untranslated[:3])
+    check("server i18n key coverage", len(server_keys) >= 140, len(server_keys))
+
     # frontend catalog: every literal ZB.t() key used by the shipped views
     def _js_unescape(s):
         out, i = [], 0
@@ -774,7 +839,7 @@ def main():
             used.update(_js_string_keys(p))
     # deliberately untranslated: brand, acronyms and sample data that must not change
     identity = {
-        "Zentra", "Zentra Bank", "ACCOUNT", "APY", "CFO", "CSV", "OPS", "STAFF",
+        "Zentra", "Zentra Bank", "APY", "CFO", "CSV", "OPS", "STAFF",
         "A. STERLING", "J. MILES", "Marcus T.", "Priya R.", "Sarah K.", "NORTHWIND LLC",
         "4020 &nbsp;•••• &nbsp;•••• &nbsp;4977",
         "4773 &nbsp;•••• &nbsp;•••• &nbsp;1120",

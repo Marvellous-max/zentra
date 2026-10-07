@@ -136,12 +136,14 @@ window.ZB = window.ZB || {};
     return '$';
   }
 
-  var FALLBACK_CURRENCIES = {
-    USD: { symbol: '$', name: ZB.t("US Dollar"), decimals: 2 },
-    EUR: { symbol: '€', name: ZB.t("Euro"), decimals: 2 },
-    GBP: { symbol: '£', name: ZB.t("British Pound"), decimals: 2 },
-    KRW: { symbol: '₩', name: ZB.t("South Korean Won"), decimals: 0 }
-  };
+  function FALLBACK_CURRENCIES() {
+    return {
+      USD: { symbol: '$', name: ZB.t("US Dollar"), decimals: 2 },
+      EUR: { symbol: '€', name: ZB.t("Euro"), decimals: 2 },
+      GBP: { symbol: '£', name: ZB.t("British Pound"), decimals: 2 },
+      KRW: { symbol: '₩', name: ZB.t("South Korean Won"), decimals: 0 }
+    };
+  }
 
   function currencyList(src) {
     var obj = src;
@@ -149,7 +151,7 @@ window.ZB = window.ZB || {};
       obj = {};
       src.forEach(function (c) { obj[c] = { name: c }; });
     }
-    if (!obj || !Object.keys(obj).length) obj = FALLBACK_CURRENCIES;
+    if (!obj || !Object.keys(obj).length) obj = FALLBACK_CURRENCIES();
     return Object.keys(obj).map(function (code) {
       var d = obj[code] || {};
       return { code: code, name: d.name || code, symbol: d.symbol || curSymbol(code),
@@ -166,7 +168,10 @@ window.ZB = window.ZB || {};
     if (n >= 1e3) return sign + sym + (n / 1e3).toFixed(1) + 'k';
     return sign + sym + n.toFixed(0);
   }
-  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function MONTHS() {
+    return [ZB.t('Jan'), ZB.t('Feb'), ZB.t('Mar'), ZB.t('Apr'), ZB.t('May'), ZB.t('Jun'),
+            ZB.t('Jul'), ZB.t('Aug'), ZB.t('Sep'), ZB.t('Oct'), ZB.t('Nov'), ZB.t('Dec')];
+  }
   function rel(ts) {
     var s = Math.max(1, (Date.now() - ts) / 1000);
     if (s < 60) return ZB.t("just now");
@@ -177,19 +182,19 @@ window.ZB = window.ZB || {};
   }
   function dateShort(ts) {
     var d = new Date(ts);
-    return MONTHS[d.getMonth()] + ' ' + d.getDate();
+    return MONTHS()[d.getMonth()] + ' ' + d.getDate();
   }
   function dateTime(ts) {
     var d = new Date(ts);
     var h = d.getHours(), m = d.getMinutes();
-    var ampm = h >= 12 ? 'PM' : 'AM';
+    var ampm = ZB.t(h >= 12 ? 'PM' : 'AM');
     h = h % 12 || 12;
-    return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() +
+    return MONTHS()[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() +
       ' · ' + h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
   }
   function monthName(ym) { // "2024-06"
     var p = ym.split('-');
-    return MONTHS[(+p[1]) - 1] + ' ' + p[0];
+    return MONTHS()[(+p[1]) - 1] + ' ' + p[0];
   }
 
   function hueColor(h) {
@@ -452,24 +457,26 @@ window.ZB = window.ZB || {};
   }
   function agoBadge(ts) { return '<span class="tiny faint">' + rel(ts) + '</span>'; }
 
-  var TX_META = {
-    deposit: { label: ZB.t("Deposit"), dir: 'in', icon: 'download' },
-    transfer_in: { label: ZB.t("Transfer in"), dir: 'in', icon: 'send' },
-    interest: { label: ZB.t("Interest"), dir: 'in', icon: 'percent' },
-    exchange_in: { label: ZB.t("Exchange"), dir: 'in', icon: 'swap' },
-    loan_disbursement: { label: ZB.t("Loan"), dir: 'in', icon: 'banknote' },
-    reversal: { label: ZB.t("Reversal"), dir: 'neutral', icon: 'rotate' },
-    adjustment: { label: ZB.t("Adjustment"), dir: 'neutral', icon: 'edit' },
-    transfer_out: { label: ZB.t("Transfer"), dir: 'out', icon: 'send' },
-    payment: { label: ZB.t("Payment"), dir: 'out', icon: 'receipt' },
-    fee: { label: ZB.t('Fee'), dir: 'out', icon: 'receipt' },
-    loan_payment: { label: ZB.t("Loan payment"), dir: 'out', icon: 'banknote' },
-    exchange_out: { label: ZB.t("Exchange"), dir: 'out', icon: 'swap' }
-  };
+  function TX_META() {
+    return {
+      deposit: { label: ZB.t("Deposit"), dir: 'in', icon: 'download' },
+      transfer_in: { label: ZB.t("Transfer in"), dir: 'in', icon: 'send' },
+      interest: { label: ZB.t("Interest"), dir: 'in', icon: 'percent' },
+      exchange_in: { label: ZB.t("Exchange"), dir: 'in', icon: 'swap' },
+      loan_disbursement: { label: ZB.t("Loan"), dir: 'in', icon: 'banknote' },
+      reversal: { label: ZB.t("Reversal"), dir: 'neutral', icon: 'rotate' },
+      adjustment: { label: ZB.t("Adjustment"), dir: 'neutral', icon: 'edit' },
+      transfer_out: { label: ZB.t("Transfer"), dir: 'out', icon: 'send' },
+      payment: { label: ZB.t("Payment"), dir: 'out', icon: 'receipt' },
+      fee: { label: ZB.t('Fee'), dir: 'out', icon: 'receipt' },
+      loan_payment: { label: ZB.t("Loan payment"), dir: 'out', icon: 'banknote' },
+      exchange_out: { label: ZB.t("Exchange"), dir: 'out', icon: 'swap' }
+    };
+  }
 
   function txRow(t, opts) {
     opts = opts || {};
-    var meta = TX_META[t.type] || { label: t.type, dir: 'neutral', icon: 'info' };
+    var meta = TX_META()[t.type] || { label: t.type, dir: 'neutral', icon: 'info' };
     var isIn = t.amount > 0;
     var cls = meta.dir === 'in' || isIn ? 'in' : meta.dir === 'out' ? 'out' : 'neutral';
     var sub = [];
