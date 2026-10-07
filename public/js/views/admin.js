@@ -1052,8 +1052,11 @@ ZB.forms = ZB.forms || {};
       mount: function () {
         ZB.forms['adm-mail'] = async function (data) {
           try {
-            await ZB.api.post('/api/admin/send-mail', data);
-            U().toast('Email sent 📧'); ZB.render();
+            var r = await ZB.api.post('/api/admin/send-mail', data);
+            if (r && r.delivered) U().toast('Email sent 📧');
+            else if (r && r.mail === 'failed') U().toast('Mail provider rejected it — check Recent deliveries.', 'err');
+            else U().toast('Saved to the in-app inbox only — no mail provider is configured, nothing was sent.', 'err');
+            ZB.render();
           } catch (e) { U().toast(e.message, 'err'); }
         };
       }

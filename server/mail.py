@@ -54,9 +54,14 @@ def available():
     return provider() is not None
 
 
+DEFAULT_FROM = "alerts@zentra.bank"
+_PROVIDER_FROM = {"brevo": "BREVO_FROM", "resend": "RESEND_FROM", "smtp": "SMTP_FROM"}
+
+
 def from_address():
-    return (_env("MAIL_FROM") or _env("BREVO_FROM") or _env("RESEND_FROM")
-            or _env("SMTP_FROM") or "alerts@zentra.bank")
+    mode = provider()
+    own = _PROVIDER_FROM.get(mode)
+    return (_env("MAIL_FROM") or (own and _env(own)) or DEFAULT_FROM)
 
 
 def from_name():

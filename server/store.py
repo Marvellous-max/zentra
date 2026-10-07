@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import threading
@@ -15,6 +16,7 @@ DAY_MS = 86_400_000
 _lock = threading.RLock()
 _db = None
 _started_at = time.time()
+_log = logging.getLogger("store")
 
 CURRENCIES = {"USD": {"symbol": "$", "name": "US Dollar"},
               "EUR": {"symbol": "\u20ac", "name": "Euro"},
@@ -265,6 +267,9 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
       cta:   in-app route for the email button (defaults to `link`)
       ref:   transaction reference shown in the email
       greet: customer first name for the "Dear ___," salutation
+    Returns the outbound result so callers can report it honestly:
+      True = handed to the provider, False = provider rejected it,
+      None = nothing sent (no provider configured, or no address on file).
     """
     db["notifications"].append({
         "id": nid(), "user_id": user_id, "title": title, "body": body,
@@ -272,19 +277,21 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
         "from_email": ALERTS_EMAIL, "link": (link or "#/app")[:80],
     })
     # Best-effort real email: when a mail provider is configured, also send outbound.
+    result = None
     try:
         import mail
         u = find_user(db, user_id)
         if u and u.get("email"):
-            ok = mail.send(u["email"], title, body,
-                           kind=kind, rows=rows, ref=ref,
-                           cta=cta or (link or None),
-                           greet=greet or ((u.get("name") or "").split() or [""])[0])
-            log_delivery(db, u["email"], title, ok)
-    except Exception:
-        pass
+            result = mail.send(u["email"], title, body,
+                               kind=kind, rows=rows, ref=ref,
+                               cta=cta or (link or None),
+                               greet=greet or ((u.get("name") or "").split() or [""])[0])
+            log_delivery(db, u["email"], title, result)
+    except Exception as e:
+        _log.warning("outbound mail to user %s raised: %s", user_id, e)
     if len(db["notifications"]) > 4000:
         db["notifications"] = db["notifications"][-3000:]
+    return result
 
 
 def log_delivery(db, to_addr, subject, res):
@@ -300,6 +307,11 @@ def log_delivery(db, to_addr, subject, res):
     })
     if len(db["deliveries"]) > 2000:
         db["deliveries"] = db["deliveries"][-1500:]
+
+
+def mail_status(res):
+    """Label the tri-state returned by notify()/mail.send() for API responses."""
+    return "sent" if res is True else ("failed" if res is False else "skipped")
 
 
 def log_declined(db, user_id, kind, reason, message="", tx_ref=""):

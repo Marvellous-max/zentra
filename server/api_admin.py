@@ -341,13 +341,13 @@ def declined_mail(ctx):
             raise ApiError(
                 "The customer has only hit %d declined tr%s — the branded email "
                 "unlocks on the third try." % (tries, "y" if tries == 1 else "ies"), 409)
-    store.notify(db, u["id"], subject or "Important: action required on your account",
-                 body, link="#/app/support")
+    res = store.notify(db, u["id"], subject or "Important: action required on your account",
+                       body, link="#/app/support")
     entry["mailed"] = True
     entry["mail_subject"] = subject
     store.audit(db, ctx["user"], "admin.decline_mail", "user:%d" % u["id"],
                 severity="warn", ref=entry["ref"])
-    return {"ok": True}
+    return {"ok": True, "delivered": bool(res), "mail": store.mail_status(res)}
 
 
 @route("POST", "/api/admin/declined-logs/{id}/resolve", auth="admin")
@@ -820,9 +820,10 @@ def send_mail_any(ctx):
         raise ApiError("That customer has no email address on file.", 400)
     if len(subject) < 3 or len(body) < 10:
         raise ApiError("Give the email a subject and a message of at least a few words.")
-    store.notify(db, u["id"], subject, body, link="#/app/support")
+    res = store.notify(db, u["id"], subject, body, link="#/app/support")
     store.audit(db, ctx["user"], "admin.email_customer", "user:%d" % u["id"], email=u["email"])
-    return {"ok": True, "to": u["email"]}
+    return {"ok": True, "delivered": bool(res), "mail": store.mail_status(res),
+            "to": u["email"]}
 
 
 @route("GET", "/api/admin/deliveries", auth="admin")
