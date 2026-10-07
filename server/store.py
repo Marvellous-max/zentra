@@ -498,6 +498,15 @@ def complete_pending(db, tx_id, approve=True, reason=""):
     if approve:
         if acct and target["amount"] > 0:
             acct["balance"] = r2(acct["balance"] + target["amount"])
+        # cross-currency hold: the source leg is already debited, so approval
+        # is what finally lands the converted amount in the other wallet.
+        if target.get("fx_dest_account_id"):
+            dest = find_account(db, target["fx_dest_account_id"])
+            if dest:
+                post(db, dest, target.get("fx_converted") or 0, "transfer_in",
+                     counterparty=(acct["label"] if acct else "")[:80],
+                     note=("Converted @ %.4f" % (target.get("fx_rate") or 1))[:200],
+                     method="internal", pair=target.get("pair"))
         target["status"] = "completed"
         if acct:
             target["balance_after"] = acct["balance"]

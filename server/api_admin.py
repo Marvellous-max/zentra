@@ -554,13 +554,18 @@ def review_pending_tx(ctx):
     amt = store.fmt_money(abs(target["amount"]) - (target.get("fee") or 0), target["currency"])
     if decision == "approve":
         store.complete_pending(db, tid, approve=True)
+        rows = [("Amount", "<b>%s</b>" % amt),
+                ("Description", target.get("counterparty") or "transfer"),
+                ("Status", "Completed")]
+        if target.get("fx_dest_account_id"):
+            dacct = store.find_account(db, target["fx_dest_account_id"])
+            if dacct:
+                rows.append(("Credits", store.fmt_money(target["fx_converted"], dacct["currency"])))
         if u:
             store.notify(db, u["id"], "Transaction approved",
                          store.T(ctx["lang"], "%s (%s) has been approved and completed · ref %s", *(amt, target.get("counterparty") or "transfer", target["ref"])),
                          link="#/app/statements", kind="success",
-                         rows=[("Amount", "<b>%s</b>" % amt),
-                               ("Description", target.get("counterparty") or "transfer"),
-                               ("Status", "Completed")],
+                         rows=rows,
                          ref=target["ref"])
         store.audit(db, ctx["user"], "admin.tx_approve", "txn:%d" % tid,
                     severity="critical", amount=abs(target["amount"]), ref=target["ref"])

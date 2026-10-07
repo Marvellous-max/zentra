@@ -222,13 +222,19 @@ def main():
 
     # insufficient funds guard
     broke = False
+    lang = os.environ.get("SELFTEST_LANG", "en")
+    expected = [
+        store.T(lang, "Insufficient funds — you need %s.", store.fmt_money(999999, "EUR")),
+        store.T(lang, "Currencies differ — use Exchange instead."),
+        store.T(lang, "Pick two different accounts."),
+    ]
     try:
         call("POST", "/api/user/transfers", {"mode": "own", "from_account_id": eur_id,
                                              "to_account_id": chk_id, "amount": 999999},
              token=tok)
     except routing.ApiError as e:
-        broke = "Insufficient" in e.message or "Exchange" in e.message or "Pick two" in e.message
-    check("insufficient/currency guard", broke)
+        broke = e.message in expected
+    check("insufficient/currency guard", broke, "got: %r" % (broke and "ok" or "unexpected message"))
 
     # ---- transfer to another customer (requires recipient acct number) ----
     sofia = store.find_user_by_email(store.load(), "sofia@example.com")
@@ -340,6 +346,47 @@ def main():
           store.fmt_money(1234, "KRW") == "₩1,234", store.fmt_money(1234, "KRW"))
     check("USD still formats with 2 decimals",
           store.fmt_money(1234.5, "USD") == "$1,234.50", store.fmt_money(1234.5, "USD"))
+
+    # ---- cross-currency own transfer, held for admin approval ----
+    def my_balances():
+        return {a["id"]: a for a in call("GET", "/api/user/accounts", token=tok)["accounts"]}
+
+    fx_rate = (store.load()["settings"]["fx"]["EUR"]
+               / store.load()["settings"]["fx"]["USD"])
+    b0 = my_balances()
+    src0, dst0 = b0[chk_id]["balance"], b0[eur_id]["balance"]
+    fxr = call("POST", "/api/user/transfers", {"mode": "own", "from_account_id": chk_id,
+                                               "to_account_id": eur_id, "amount": 100,
+                                               "note": "fx gate"}, token=tok)
+    check("cross-currency transfer is held", fxr.get("pending") is True, fxr)
+    check("cross-currency rate quoted", abs(fxr["rate"] - fx_rate) < 1e-6, fxr.get("rate"))
+    check("cross-currency amount converted",
+          fxr["converted"] == round(100 * fx_rate, 2), fxr.get("converted"))
+    b1 = my_balances()
+    check("source debited while pending",
+          b1[chk_id]["balance"] == round(src0 - 100, 2), b1[chk_id]["balance"])
+    check("destination untouched while pending",
+          b1[eur_id]["balance"] == dst0, b1[eur_id]["balance"])
+    held_id = fxr["transactions"][0]["id"]
+    call("POST", "/api/admin/transactions/%d/review" % held_id,
+         {"decision": "approve"}, token=atok)
+    b2 = my_balances()
+    check("destination credited on approval",
+          b2[eur_id]["balance"] == round(dst0 + 100 * fx_rate, 2), b2[eur_id]["balance"])
+    check("source stays debited after approval",
+          b2[chk_id]["balance"] == round(src0 - 100, 2), b2[chk_id]["balance"])
+
+    b3 = my_balances()
+    s3, d3 = b3[chk_id]["balance"], b3[eur_id]["balance"]
+    fxr2 = call("POST", "/api/user/transfers", {"mode": "own", "from_account_id": chk_id,
+                                                "to_account_id": eur_id, "amount": 40}, token=tok)
+    call("POST", "/api/admin/transactions/%d/review" % fxr2["transactions"][0]["id"],
+         {"decision": "reject", "reason": "Rate review"}, token=atok)
+    b4 = my_balances()
+    check("declined cross-currency transfer refunds source",
+          b4[chk_id]["balance"] == s3, b4[chk_id]["balance"])
+    check("declined transfer leaves destination alone",
+          b4[eur_id]["balance"] == d3, b4[eur_id]["balance"])
 
     # ---- cards ----
     cards = call("GET", "/api/user/cards", token=tok)

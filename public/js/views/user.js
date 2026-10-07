@@ -45,7 +45,7 @@ ZB.forms = ZB.forms || {};
       '<h3 class="txr-title">' + U().esc(res.title || m.def) + '</h3>' +
       (res.sub ? '<div class="txr-sub">' + U().esc(res.sub) + '</div>' : '') +
       (res.amount ? '<div class="txr-amount">' + res.amount + '</div>' : '') +
-      (res.ref ? '<div><span class="txr-ref-pill" data-copy="' + U().esc(res.ref) + '" style="cursor:pointer" title="' + ZB.t("Copy reference") + '">Ref&nbsp;<b>' +
+      (res.ref ? '<div><span class="txr-ref-pill" data-copy="' + U().esc(res.ref) + '" style="cursor:pointer" title="' + ZB.t("Copy reference") + '">' + ZB.t("Ref") + '&nbsp;<b>' +
         U().esc(res.ref) + '</b>&nbsp;' + U().icon('copy', 12) + '</span></div>' : '') +
       '</div>' +
       (rowsHtml ? '<div class="txr-rows">' + rowsHtml + '</div>' : '') +
@@ -55,7 +55,7 @@ ZB.forms = ZB.forms || {};
       (res.state !== 'declined'
         ? '<div class="txr-mail">' + U().icon('mail', 16) +
           "<p>" + ZB.t("A confirmation was sent from") + " <b>" + ALERTS_EMAIL + '</b>' +
-          (res.mail ? ' — ' + U().esc(res.mail) : '') +
+          (res.mail ? ' — ' + U().esc(res.mail).replace(/\.$/, '') : '') +
           ZB.t(". Find it anytime in your") + " <b>" + ZB.t("Notifications") + "</b> " + ZB.t("tray.") + "</p></div>"
         : '') +
       '<div class="row mt-2" style="gap:10px">' +
@@ -86,7 +86,7 @@ ZB.forms = ZB.forms || {};
       pinBlock +
       '<div class="err-line hidden" id="txc-err"></div>' +
       '<button class="btn block lg" type="submit">' +
-      U().icon(cfg.needsPin ? 'lock' : 'check', 15) + ' ' + U().esc(cfg.confirmLabel || 'Confirm') +
+      U().icon(cfg.needsPin ? 'lock' : 'check', 15) + ' ' + U().esc(cfg.confirmLabel || ZB.t('Confirm')) +
       '</button></form>');
     ZB.forms['u-tx-confirm'] = async function (data) {
       var errEl = document.getElementById('txc-err');
@@ -116,8 +116,8 @@ ZB.forms = ZB.forms || {};
             sub: ZB.t("We couldn't complete this request"),
             amount: cfg.amountLabel || '',
             rows: [
-              ['Date', U().dateTime(Date.now())],
-              ['Status', "<span class=\"pill red\">" + ZB.t("Declined") + "</span>"],
+              [ZB.t('Date'), U().dateTime(Date.now())],
+              [ZB.t('Status'), "<span class=\"pill red\">" + ZB.t("Declined") + "</span>"],
               [ZB.t("Next step"), ZB.t("Our team will contact you if action is needed")]
             ]
           });
@@ -263,9 +263,9 @@ ZB.forms = ZB.forms || {};
           sub: ZB.t("To ") + (a ? a.label : ZB.t("your account")),
           ref: r.transaction.ref,
           rows: [
-            ['Date', U().dateTime(Date.now())],
+            [ZB.t('Date'), U().dateTime(Date.now())],
             [ZB.t('Method'), U().esc((data.method || 'bank').replace(/_/g, ' '))],
-            ['Status', "<span class=\"pill amber\">" + ZB.t("Under review") + "</span>"]
+            [ZB.t('Status'), "<span class=\"pill amber\">" + ZB.t("Under review") + "</span>"]
           ],
           mail: ZB.t("we'll notify you the moment the funds land.")
         });
@@ -276,7 +276,7 @@ ZB.forms = ZB.forms || {};
             state: 'declined', title: ZB.t("Transaction declined"),
             sub: ZB.t("Your account is currently restricted"),
             rows: [
-              ['Date', U().dateTime(Date.now())],
+              [ZB.t('Date'), U().dateTime(Date.now())],
               [ZB.t('Reason'), ZB.t("Account under review by Zentra")],
               [ZB.t("Next step"), ZB.t("Check Notifications — our team has emailed you what to do")]
             ]
@@ -648,6 +648,11 @@ ZB.forms = ZB.forms || {};
         var f2 = Math.max(amt * b.fees.external_fee_pct / 100, b.fees.external_fee_min);
         feeText = U().money(f2, cur);
       }
+      var fx = null;
+      if (mode === 'own' && to && to.currency !== cur && b.fx && b.fx[cur] && b.fx[to.currency]) {
+        fx = { rate: b.fx[to.currency] / b.fx[cur], cur: to.currency };
+        fx.credit = amt * fx.rate;
+      }
       confirmTx({
         title: ZB.t("Authorize transfer"),
         sub: ZB.t("Review the details. Transfers are final once confirmed."),
@@ -656,12 +661,16 @@ ZB.forms = ZB.forms || {};
         amountLabel: U().money(amt, cur),
         confirmLabel: ZB.t("Confirm & send ") + U().money(amt, cur),
         summaryRows: [
-          ['Amount', '<span style="font-size:16px">' + U().money(amt, cur) + '</span>'],
-          ['To', U().esc(recipient)],
+          [ZB.t('Amount'), '<span style="font-size:16px">' + U().money(amt, cur) + '</span>'],
+          [ZB.t('To'), U().esc(recipient)],
           [ZB.t('From'), U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
           [ZB.t('Fee'), feeText],
           [ZB.t('Note'), U().esc(data.note || '—')]
-        ],
+        ].concat(fx ? [
+          [ZB.t("You'll receive"), '<b>' + U().money(fx.credit, fx.cur) + '</b>'],
+          [ZB.t("Rate"), '1 ' + cur + ' = ' + fx.rate.toFixed(4) + ' ' + fx.cur],
+          [ZB.t("Approval"), ZB.t("Admin review required")]
+        ] : []),
         run: async function (pin) {
           var r = await ZB.api.post('/api/user/transfers',
             Object.assign({}, data, { mode: mode, pin: pin }));
@@ -671,15 +680,19 @@ ZB.forms = ZB.forms || {};
             sub: ZB.t("To ") + recipient,
             ref: out.ref,
             rows: [
-              ['Date', U().dateTime(Date.now())],
+              [ZB.t('Date'), U().dateTime(Date.now())],
               [ZB.t('Fee'), feeText],
-              ['Status', r.pending ? "<span class=\"pill amber\">" + ZB.t("Pending review") + "</span>"
+              [ZB.t('Status'), r.pending ? "<span class=\"pill amber\">" + ZB.t("Pending review") + "</span>"
                                    : "<span class=\"pill green\">" + ZB.t("Completed") + "</span>"]
-            ]
+            ].concat(fx && r.converted ? [
+              [ZB.t("You'll receive"), U().money(r.converted, fx.cur)]
+            ] : [])
           };
           if (r.pending) return Object.assign(base, {
             state: 'pending', title: ZB.t("Pending approval"),
-            mail: ZB.t("we'll email you the moment this payout is approved.")
+            mail: mode === 'own'
+              ? ZB.t("we'll email you the moment your transfer is approved.")
+              : ZB.t("we'll email you the moment this payout is approved.")
           });
           return Object.assign(base, { state: 'success', title: ZB.t("Transfer successful") });
         }
@@ -747,9 +760,9 @@ ZB.forms = ZB.forms || {};
           sub: ZB.t("Rate 1 ") + from.currency + ' = ' + Number(r.rate).toFixed(4) + ' ' + to.currency,
           ref: outT.ref,
           rows: [
-            ['Date', U().dateTime(Date.now())],
+            [ZB.t('Date'), U().dateTime(Date.now())],
             [ZB.t('Fee'), outT.fee ? U().money(outT.fee, to.currency) : '—'],
-            ['Status', "<span class=\"pill green\">" + ZB.t("Completed") + "</span>"]
+            [ZB.t('Status'), "<span class=\"pill green\">" + ZB.t("Completed") + "</span>"]
           ],
           mail: ZB.t("both sides settled instantly.")
         });
@@ -760,7 +773,7 @@ ZB.forms = ZB.forms || {};
             state: 'declined', title: ZB.t("Transaction declined"),
             sub: ZB.t("Your account is currently restricted"),
             rows: [
-              ['Date', U().dateTime(Date.now())],
+              [ZB.t('Date'), U().dateTime(Date.now())],
               [ZB.t('Reason'), ZB.t("Account under review by Zentra")],
               [ZB.t("Next step"), ZB.t("Check Notifications — our team has emailed you what to do")]
             ]
@@ -1022,7 +1035,7 @@ ZB.forms = ZB.forms || {};
               [ZB.t('Biller'), U().esc(data.biller)],
               [ZB.t('Category'), U().esc(billName({ key: chosenCategory, name: chosenCategory }) || ZB.t('other'))],
               [ZB.t('From'), U().esc(from.label + ' · ··' + String(from.number).replace(/\s/g, '').slice(-4))],
-              ['Ref', U().esc(data.customer_ref || '—')]
+              [ZB.t('Ref'), U().esc(data.customer_ref || '—')]
             ],
             run: async function (pin) {
               var r = await ZB.api.post('/api/user/payments',

@@ -426,7 +426,10 @@ def transfer(ctx):
         if dest["id"] == acct["id"]:
             raise ApiError("Pick two different accounts.")
         if dest["currency"] != acct["currency"]:
-            raise ApiError("Currencies differ — use Exchange instead.")
+            return _fx_own_transfer(ctx, db, acct, dest, amt, note)
+        if acct["balance"] < amt:
+            raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s.",
+                                   store.fmt_money(amt, acct["currency"])))
         pair = store.pair_id()
         out = store.post(db, acct, -amt, "transfer_out", counterparty=dest["label"],
                          note=note or "To %s" % dest["label"], pair=pair)
@@ -548,6 +551,55 @@ def transfer(ctx):
                 "transactions": [enrich_tx(db, out)]}
 
     raise ApiError("Unknown transfer type.")
+
+
+def _fx_own_transfer(ctx, db, src, dst, amt, note):
+    """Move money between the customer's own accounts in two currencies.
+
+    Converts at the book rate with no fee, and holds the outgoing leg as a
+    pending entry until an admin approves it — the destination is only
+    credited (in its own currency) once the review passes.
+    """
+    fx = db["settings"]["fx"]
+    rate = float(fx[dst["currency"]]) / float(fx[src["currency"]])
+    converted = store.r2(amt * rate)
+    if src["balance"] < amt:
+        raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s.",
+                               store.fmt_money(amt, src["currency"])))
+    usd = store.fx_to_usd(db, amt, src["currency"])
+    kyc_gate(ctx, usd)
+    left = daily_left(db, src)
+    if left is not None and usd > left:
+        raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).",
+                               store.fmt_money(max(left, 0), src["currency"])))
+    single = float(db["settings"].get("max_transfer_single", 0) or 0)
+    if single and usd > single:
+        raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.",
+                               store.fmt_money(single)))
+    pair = store.pair_id()
+    out = store.post(db, src, -amt, "transfer_out", status="pending",
+                     counterparty=dst["label"][:80],
+                     note=(note or "To %s" % dst["label"])[:200],
+                     method="internal", pair=pair,
+                     extra={"fx_dest_account_id": dst["id"],
+                            "fx_rate": round(rate, 6),
+                            "fx_converted": converted,
+                            "fx_pair": "%s>%s" % (src["currency"], dst["currency"])})
+    store.notify(db, ctx["user"]["id"], "Transfer pending approval",
+                 "This transfer credits %s at the current rate once approved.",
+                 args=(store.fmt_money(converted, dst["currency"]),),
+                 kind="warning", cta="#/app/statements",
+                 rows=[("From", src["label"]), ("To", dst["label"]),
+                       ("Amount", store.fmt_money(amt, src["currency"])),
+                       ("Credits", store.fmt_money(converted, dst["currency"])),
+                       ("Rate", "%.4f" % rate), ("Status", "Pending")],
+                 ref=out["ref"])
+    store.audit(db, ctx["user"], "transfer.internal_fx", "txn:%d" % out["id"],
+                amount=amt, currency=src["currency"],
+                frm=src["currency"], to=dst["currency"], rate=round(rate, 4))
+    return {"ok": True, "pending": True, "rate": round(rate, 6),
+            "converted": converted, "account": acct_brief(src),
+            "transactions": [enrich_tx(db, out)]}
 
 
 def _first(name):

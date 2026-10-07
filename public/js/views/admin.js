@@ -423,6 +423,7 @@ ZB.forms = ZB.forms || {};
           '<td class="small"><b>' + U().esc(t.user_name) + '</b></td>' +
           '<td class="small">' + U().esc(t.counterparty || t.type.replace(/_/g, ' ')) +
           (t.note ? '<div class="tiny faint">' + U().esc(t.note.slice(0, 60)) + '</div>' : '') +
+          (t.fx_pair && t.fx_converted ? '<div class="tiny faint">→ ' + U().money(t.fx_converted, String(t.fx_pair).split('>')[1]) + ' @ ' + t.fx_rate + '</div>' : '') +
           '<div class="tiny mono faint">' + t.ref + '</div></td>' +
           '<td class="small muted">' + U().esc(t.account_label) + ' · ' + t.currency + '</td>' +
           '<td>' + U().pillFor(t.status) + '</td>' +
@@ -925,10 +926,14 @@ ZB.forms = ZB.forms || {};
     }
     function txCard(t) {
       var inbound = t.amount > 0;
+      var fxs = t.fx_pair ? String(t.fx_pair).split('>') : null;
+      var fxNote = (fxs && fxs.length === 2 && t.fx_converted)
+        ? ' · ' + U().esc(fxs[0]) + ' → <b>' + U().money(t.fx_converted, fxs[1]) + '</b> @ ' + t.fx_rate
+        : '';
       return '<div class="card mb-1" style="border-color:rgba(251,191,36,.35)"><div class="spread wrap">' +
         '<div><b>' + U().money(t.amount, t.currency) + (inbound ? ' → ' : ' ← ') + U().esc(t.user_name) + '</b>' +
         '<div class="small muted mt-1">' + U().esc((t.counterparty || t.type.replace(/_/g, ' '))) +
-        ' · into ' + U().esc(t.account_label || '') + '</div>' +
+        ' · into ' + U().esc(t.account_label || '') + fxNote + '</div>' +
         '<div class="tiny faint mt-1">' + U().dateTime(t.created_at) + ' · ref <span class="mono">' + U().esc(t.ref) + '</span></div></div>' +
         '<div class="row" style="gap:8px">' +
         '<button class="btn primary sm" data-appr="' + t.id + '">' + U().icon('check', 14) + ' Approve</button>' +
