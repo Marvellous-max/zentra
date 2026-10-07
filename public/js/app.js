@@ -41,6 +41,20 @@ ZB.timers = [];
     '/register': function (q) { return ZB.views.public.register(q); }
   };
 
+  var PUB_TITLES = {
+    '/': ZB.t("Zentra Bank | No-Fee Checking & High-Yield Savings"),
+    '/personal': ZB.t("Personal Banking"),
+    '/business': ZB.t("Business Banking"),
+    '/pricing': ZB.t("Rates & Fees"),
+    '/rates': ZB.t("Rates & Fees"),
+    '/security': 'Security',
+    '/support': ZB.t("Contact Us"),
+    '/about': ZB.t("About Us"),
+    '/legal': ZB.t("Legal & Disclosures"),
+    '/login': ZB.t("Sign In"),
+    '/register': ZB.t("Open an Account")
+  };
+
   var USER_PAGES = {
     '/app': function (q) { return ZB.views.user.overview(q); },
     '/app/accounts': function (q) { return ZB.views.user.accounts(q); },
@@ -101,42 +115,42 @@ ZB.timers = [];
 
   var NAVS = {
     user: [
-      { group: 'Banking' },
-      { href: '#/app', label: 'Overview', icon: 'grid' },
-      { href: '#/app/accounts', label: 'Accounts', icon: 'wallet' },
-      { href: '#/app/transfer', label: 'Send & Exchange', icon: 'swap' },
-      { href: '#/app/cards', label: 'Cards', icon: 'card' },
-      { href: '#/app/pay', label: 'Pay bills', icon: 'receipt' },
-      { href: '#/app/loans', label: 'Loans', icon: 'target' },
-      { href: '#/app/statements', label: 'Statements', icon: 'file' },
-      { group: 'Profile' },
-      { href: '#/app/settings', label: 'Settings', icon: 'settings' }
+      { group: ZB.t("Banking") },
+      { href: '#/app', label: ZB.t("Overview"), icon: 'grid' },
+      { href: '#/app/accounts', label: ZB.t("Accounts"), icon: 'wallet' },
+      { href: '#/app/transfer', label: ZB.t("Send & Exchange"), icon: 'swap' },
+      { href: '#/app/cards', label: ZB.t("Cards"), icon: 'card' },
+      { href: '#/app/pay', label: ZB.t("Pay bills"), icon: 'receipt' },
+      { href: '#/app/loans', label: ZB.t("Loans"), icon: 'target' },
+      { href: '#/app/statements', label: ZB.t("Statements"), icon: 'file' },
+      { group: ZB.t("Profile") },
+      { href: '#/app/settings', label: ZB.t("Settings"), icon: 'settings' }
     ],
     admin: [
-      { group: 'Back office' },
-      { href: '#/admin', label: 'Overview', icon: 'grid' },
-      { href: '#/admin/customers', label: 'Customers', icon: 'users' },
-      { href: '#/admin/accounts', label: 'Accounts', icon: 'wallet' },
-      { href: '#/admin/transactions', label: 'Ledger', icon: 'layers' },
-      { href: '#/admin/approvals', label: 'Approvals', icon: 'check' },
-      { href: '#/admin/declined', label: 'Declined log', icon: 'x' },
-      { href: '#/admin/mail', label: 'Email', icon: 'mail' },
-      { group: 'Approvals' },
-      { href: '#/admin/payouts', label: 'Payouts', icon: 'send' },
-      { href: '#/admin/loans', label: 'Loans', icon: 'target' },
-      { href: '#/admin/kyc', label: 'Verifications', icon: 'shield' },
-      { group: 'Desk' },
-      { href: '#/admin/support', label: 'Support inbox', icon: 'message' },
-      { href: '#/admin/broadcast', label: 'Announcements', icon: 'bell' },
-      { href: '#/admin/audit', label: 'Audit log', icon: 'clock' }
+      { group: ZB.t("Back office") },
+      { href: '#/admin', label: ZB.t("Overview"), icon: 'grid' },
+      { href: '#/admin/customers', label: ZB.t("Customers"), icon: 'users' },
+      { href: '#/admin/accounts', label: ZB.t("Accounts"), icon: 'wallet' },
+      { href: '#/admin/transactions', label: ZB.t("Ledger"), icon: 'layers' },
+      { href: '#/admin/approvals', label: ZB.t("Approvals"), icon: 'check' },
+      { href: '#/admin/declined', label: ZB.t("Declined log"), icon: 'x' },
+      { href: '#/admin/mail', label: ZB.t("Email"), icon: 'mail' },
+      { group: ZB.t("Approvals") },
+      { href: '#/admin/payouts', label: ZB.t("Payouts"), icon: 'send' },
+      { href: '#/admin/loans', label: ZB.t("Loans"), icon: 'target' },
+      { href: '#/admin/kyc', label: ZB.t("Verifications"), icon: 'shield' },
+      { group: ZB.t("Desk") },
+      { href: '#/admin/support', label: ZB.t("Support inbox"), icon: 'message' },
+      { href: '#/admin/broadcast', label: ZB.t("Announcements"), icon: 'bell' },
+      { href: '#/admin/audit', label: ZB.t("Audit log"), icon: 'clock' }
     ],
     system: [
-      { group: 'Backend management' },
-      { href: '#/system', label: 'Health', icon: 'activity' },
-      { href: '#/system/rules', label: 'Money rules', icon: 'percent' },
-      { href: '#/system/sessions', label: 'Sessions', icon: 'key' },
-      { href: '#/system/backups', label: 'Backups & data', icon: 'database' },
-      { href: '#/system/audit', label: 'System audit', icon: 'shieldOff' }
+      { group: ZB.t("Backend management") },
+      { href: '#/system', label: ZB.t("Health"), icon: 'activity' },
+      { href: '#/system/rules', label: ZB.t("Money rules"), icon: 'percent' },
+      { href: '#/system/sessions', label: ZB.t("Sessions"), icon: 'key' },
+      { href: '#/system/backups', label: ZB.t("Backups & data"), icon: 'database' },
+      { href: '#/system/audit', label: ZB.t("System audit"), icon: 'shieldOff' }
     ]
   };
 
@@ -150,10 +164,10 @@ ZB.timers = [];
 
   function crossLinks(kind, user) {
     var out = '';
-    if (kind !== 'user') out += '<a class="nav-item" href="#/app">' + U().icon('wallet', 17) + '<span class="lbl">My banking</span></a>';
+    if (kind !== 'user') out += '<a class="nav-item" href="#/app">' + U().icon('wallet', 17) + "<span class=\"lbl\">" + ZB.t("My banking") + "</span></a>";
     if (user && user.role === 'admin') {
-      if (kind !== 'admin') out += '<a class="nav-item" href="#/admin">' + U().icon('users', 17) + '<span class="lbl">Back office</span></a>';
-      if (kind !== 'system') out += '<a class="nav-item" href="#/system">' + U().icon('server', 17) + '<span class="lbl">System console</span></a>';
+      if (kind !== 'admin') out += '<a class="nav-item" href="#/admin">' + U().icon('users', 17) + "<span class=\"lbl\">" + ZB.t("Back office") + "</span></a>";
+      if (kind !== 'system') out += '<a class="nav-item" href="#/system">' + U().icon('server', 17) + "<span class=\"lbl\">" + ZB.t("System console") + "</span></a>";
     }
     return out;
   }
@@ -165,28 +179,29 @@ ZB.timers = [];
     var html =
       '<div class="shell">' +
       '<aside class="sidebar">' +
-      '<div class="side-logo">' + logo() + '<span class="logo-text">Zentra</span>' +
-      (kind === 'system' ? '<span class="pill violet plain tiny" style="margin-left:auto">OPS</span>' :
-        kind === 'admin' ? '<span class="pill blue plain tiny" style="margin-left:auto">STAFF</span>' : '') +
+      '<div class="side-logo">' + logo() + "<span class=\"logo-text\">" + ZB.t("Zentra") + "</span>" +
+      (kind === 'system' ? "<span class=\"pill violet plain tiny\" style=\"margin-left:auto\">" + ZB.t("OPS") + "</span>" :
+        kind === 'admin' ? "<span class=\"pill blue plain tiny\" style=\"margin-left:auto\">" + ZB.t("STAFF") + "</span>" : '') +
       '</div>' +
       '<nav class="side-nav">' + sideNav(nav, activePath) +
-      '<div class="group">Switch</div>' + crossLinks(kind, ZB.state.user) + '</nav>' +
+      "<div class=\"group\">" + ZB.t("Switch") + "</div>" + crossLinks(kind, ZB.state.user) + '</nav>' +
       '<div class="side-foot mt-2">' +
       '<div class="row" style="gap:10px;padding:4px 10px 12px">' +
       '<div class="avatar" style="background:' + U().hueColor(hue) + '">' + U().esc(U().initials(u.name)) + '</div>' +
       '<div style="min-width:0"><b class="small" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
       U().esc(u.name || '') + '</b><span class="tiny faint">' + U().esc(u.email || '') + '</span></div></div>' +
-      '<button class="btn sm ghost block" id="x-logout">' + U().icon('logout', 15) + ' Sign out</button>' +
+      '<button class="btn sm ghost block" id="x-logout">' + U().icon('logout', 15) + " " + ZB.t("Sign out") + "</button>" +
       '</div></aside>' +
 
       '<div class="main">' +
       (ZB.state.boot && ZB.state.boot.maintenance ?
         '<div class="banner" style="margin:14px 28px 0">' + U().icon('alert', 16) +
-        ' Scheduled maintenance is ON — customer money moves are paused.' +
-        (kind !== 'user' ? ' <span class="faint">(staff bypass active)</span>' : '') + '</div>' : '') +
+        ZB.t(" Scheduled maintenance is ON — customer money moves are paused.") +
+        (kind !== 'user' ? " <span class=\"faint\">" + ZB.t("(staff bypass active)") + "</span>" : '') + '</div>' : '') +
       '<header class="topbar">' +
-      '<button class="icon-btn menu-btn" id="x-menu" aria-label="Menu" style="display:none">' + U().icon('menu', 19) + '</button>' +
-      '<span class="page-name">' + U().esc(title) + '</span><span class="spacer"></span>' +
+      '<button class="icon-btn menu-btn" id="x-menu" aria-label="' + ZB.t("Menu") + '" style="display:none">' + U().icon('menu', 19) + '</button>' +
+      '<span class="page-name">' + U().esc(ZB.t(title)) + '</span><span class="spacer"></span>' +
+      ZB.i18n.switcherHtml() +
       '<div style="position:relative">' +
       '<button class="icon-btn" id="x-bell" aria-label="Notifications" style="position:relative">' + U().icon('bell', 18) +
       '<span class="bell-badge hidden" id="notif-badge"></span></button>' +
@@ -206,9 +221,9 @@ ZB.timers = [];
     var panel = document.createElement('div');
     panel.className = 'notif-panel';
     panel.id = 'notif-panel';
-    panel.innerHTML = '<div class="spread" style="padding:14px 16px 8px"><b class="small">Notifications</b>' +
-      '<button class="btn sm ghost" id="x-readall" style="padding:3px 10px;font-size:11.5px">Mark all read</button></div>' +
-      '<div class="notif-list"><div class="empty tiny">Loading…</div></div>';
+    panel.innerHTML = "<div class=\"spread\" style=\"padding:14px 16px 8px\"><b class=\"small\">" + ZB.t("Notifications") + "</b>" +
+      "<button class=\"btn sm ghost\" id=\"x-readall\" style=\"padding:3px 10px;font-size:11.5px\">" + ZB.t("Mark all read") + "</button></div>" +
+      "<div class=\"notif-list\"><div class=\"empty tiny\">" + ZB.t("Loading…") + "</div></div>";
     btn.parentElement.appendChild(panel);
     try {
       var r = await A().get('/api/user/notifications');
@@ -219,14 +234,14 @@ ZB.timers = [];
           return '<div class="notif-item ' + (n.read ? 'read' : '') + '">' +
             '<span class="dot"></span><div style="min-width:0">' +
             '<div class="nfrom">' + U().icon('mail', 12) +
-            '<b>Zentra Alerts</b><span>&lt;' + U().esc(n.from_email || 'alerts@zentra.bank') + '&gt;</span></div>' +
+            "<b>" + ZB.t("Zentra Alerts") + "</b><span>&lt;" + U().esc(n.from_email || 'alerts@zentra.bank') + '&gt;</span></div>' +
             '<b>' + U().esc(n.title) + '</b>' +
             '<p>' + U().esc(n.body) + '</p>' +
             '<a class="notif-open-link" href="' + abs + '" target="_blank" rel="noopener" data-inapp="' + link + '">' +
-            'Open in Zentra' + U().icon('arrowRight', 11) + '</a>' +
+            ZB.t("Open in Zentra") + U().icon('arrowRight', 11) + '</a>' +
             '<span class="tiny faint" style="display:block;margin-top:4px">' + U().rel(n.created_at) + '</span></div></div>';
         }).join('')
-        : '<div class="empty">' + U().icon('bell', 30) + '<b>All caught up</b><span class="tiny">Nothing new right now.</span></div>';
+        : '<div class="empty">' + U().icon('bell', 30) + "<b>" + ZB.t("All caught up") + "</b><span class=\"tiny\">" + ZB.t("Nothing new right now.") + "</span></div>";
       panel.querySelector('.notif-list').innerHTML = list;
       panel.querySelectorAll('[data-inapp]').forEach(function (a) {
         a.addEventListener('click', function (e) {
@@ -252,10 +267,10 @@ ZB.timers = [];
 
   function accountMenu(btn) {
     U().menu(btn, [
-      { label: 'My profile', icon: 'user', fn: function () { ZB.navigate('#/app/settings'); } },
-      { label: 'Security & sessions', icon: 'key', fn: function () { ZB.navigate('#/app/settings'); } },
+      { label: ZB.t("My profile"), icon: 'user', fn: function () { ZB.navigate('#/app/settings'); } },
+      { label: ZB.t("Security & sessions"), icon: 'key', fn: function () { ZB.navigate('#/app/settings'); } },
       '-',
-      { label: 'Sign out', icon: 'logout', danger: true, fn: doLogout }
+      { label: ZB.t("Sign out"), icon: 'logout', danger: true, fn: doLogout }
     ]);
   }
 
@@ -264,7 +279,7 @@ ZB.timers = [];
     A().setToken('');
     ZB.state.user = null;
     ZB.state.boot = null;
-    U().toast('Signed out. See you soon!', 'info');
+    U().toast(ZB.t("Signed out. See you soon!"), 'info');
     location.hash = '#/';
     render();
   }
@@ -275,6 +290,7 @@ ZB.timers = [];
     var my = ++seq;
     clearTimers();
     closeNotif();
+    ZB.i18n.refresh();
     var t = parseHash();
     var appEl = document.getElementById('app');
     var def = matchRoute(t.path);
@@ -287,32 +303,35 @@ ZB.timers = [];
     // ---- guards ----
     if (def.kind !== 'pub') {
       if (!ZB.state.user) {
-        U().toast('Please sign in to continue.', 'info');
+        U().toast(ZB.t("Please sign in to continue."), 'info');
         return ZB.navigate('#/login');
       }
       if ((def.kind === 'admin' || def.kind === 'system') && ZB.state.user.role !== 'admin') {
-        U().toast('That area is for bank operators.', 'err');
+        U().toast(ZB.t("That area is for bank operators."), 'err');
         return ZB.navigate('#/app');
       }
     } else if ((t.path === '/login' || t.path === '/register') && ZB.state.user) {
       return ZB.navigate(homeFor(ZB.state.user));
     }
 
-    appEl.innerHTML = '<div class="boot"><div class="boot-ring"></div><span>Loading…</span></div>';
+    appEl.innerHTML = "<div class=\"boot\"><div class=\"boot-ring\"></div><span>" + ZB.t("Loading…") + "</span></div>";
     try {
       // ensure fresh session info for app areas
       if (def.kind !== 'pub' && !ZB.state.boot) {
         ZB.state.boot = await A().get('/api/auth/me');
         ZB.state.user = ZB.state.boot.user;
         ZB.state.unread = ZB.state.boot.unread || 0;
+        ZB.i18n.refresh();
       }
       var page = await def.fn(t.query);
       if (my !== seq) return;
 
       if (def.kind === 'pub') {
+        document.title = ZB.t((page && page.title) || PUB_TITLES[t.path] || ZB.t("Zentra Bank"));
         appEl.innerHTML = page.html;
       } else {
         var title = (page && page.title) || 'Zentra';
+        document.title = ZB.t(title);
         appEl.innerHTML = shell(def.kind, def.rewrite || t.path, title, page.html);
         bindShellChrome(appEl);
       }
@@ -327,23 +346,23 @@ ZB.timers = [];
         A().setToken('');
         ZB.state.user = null;
         ZB.state.boot = null;
-        U().toast('Session expired — sign in again.', 'info');
+        U().toast(ZB.t("Session expired — sign in again."), 'info');
         return ZB.navigate('#/login');
       }
       appEl.innerHTML =
         '<div class="nf-page">' + U().icon('alert', 44) +
-        '<h1 style="font-size:1.6rem;margin:10px 0 6px">Something went wrong</h1>' +
-        '<p class="muted">' + U().esc((err && err.message) || 'Unknown error') + '</p>' +
-        '<button class="btn mt-2" onclick="location.reload()">' + U().icon('refresh', 16) + ' Reload</button>' +
+        "<h1 style=\"font-size:1.6rem;margin:10px 0 6px\">" + ZB.t("Something went wrong") + "</h1>" +
+        '<p class="muted">' + U().esc((err && err.message) || ZB.t("Unknown error")) + '</p>' +
+        '<button class="btn mt-2" onclick="location.reload()">' + U().icon('refresh', 16) + " " + ZB.t("Reload") + "</button>" +
         '<style>.nf-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--red)}</style>';
     }
   }
 
   function notFound() {
     return '<div class="nf-page">' + U().icon('search', 46) +
-      '<h1 style="font-size:1.7rem;margin:14px 0 6px;color:var(--text)">Page not found</h1>' +
-      '<p class="muted">The page you\'re looking for doesn\'t exist.</p>' +
-      '<a class="btn primary mt-2" href="#/">Take me home</a>' +
+      "<h1 style=\"font-size:1.7rem;margin:14px 0 6px;color:var(--text)\">" + ZB.t("Page not found") + "</h1>" +
+      "<p class=\"muted\">" + ZB.t("The page you're looking for doesn't exist.") + "</p>" +
+      "<a class=\"btn primary mt-2\" href=\"#/\">" + ZB.t("Take me home") + "</a>" +
       '<style>.nf-page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style>';
   }
 

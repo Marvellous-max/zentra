@@ -40,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control",
                          "no-store" if ctype.startswith(("application/json", "text/html"))
-                         else "max-age=300")
+                         else "no-cache")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         try:
@@ -107,6 +107,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(method, parsed.path)
 
         db = store.load()
+        lang = (self.headers.get("X-Zentra-Lang") or "en").strip().lower()[:8]
         try:
             r, params = routing.match(method, parts)
             if not r:
@@ -117,6 +118,7 @@ class Handler(BaseHTTPRequestHandler):
                 "body": {}, "user": None, "token": self._token(),
                 "ua": self.headers.get("User-Agent") or "",
                 "ip": self.client_address[0] if self.client_address else "",
+                "lang": lang,
             }
             if r["auth"]:
                 user = authx.resolve_user(db, ctx["token"])
@@ -149,10 +151,10 @@ class Handler(BaseHTTPRequestHandler):
             store.save()
             self._send(status, payload)
         except routing.ApiError as e:
-            self._send(e.code, {"error": e.message})
+            self._send(e.code, {"error": store.T(lang, e.message)})
         except Exception:
             traceback.print_exc()
-            self._send(500, {"error": "Internal server error."})
+            self._send(500, {"error": store.T(lang, "Internal server error.")})
 
     # -------------------------------------------------------------- static --
     def _static(self, method, path):
@@ -200,6 +202,7 @@ class Server(ThreadingHTTPServer):
 
 def main():
     os.makedirs(store.DATA_DIR, exist_ok=True)
+    store.load_locales()
     seeded = seed_if_empty()
     print("")
     print("  ◆ Zentra Bank is running")

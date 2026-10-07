@@ -12,7 +12,7 @@ window.ZB = window.ZB || {};
 
   async function request(path, opts) {
     opts = opts || {};
-    var headers = { 'Content-Type': 'application/json' };
+    var headers = { 'Content-Type': 'application/json', 'X-Zentra-Lang': ZB.lang || 'en' };
     var tok = getToken();
     if (tok) headers['Authorization'] = 'Bearer ' + tok;
     var res;

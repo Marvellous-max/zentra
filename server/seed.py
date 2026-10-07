@@ -17,7 +17,7 @@ def _mkuser(db, name, email, pw, role="user", kyc="unverified", joined=None,
         "hue": secrets.randbelow(360),
         "kyc_status": kyc, "kyc_doc": "", "kyc_note": "",
         "kyc_submitted_at": None, "kyc_reviewed_at": None,
-        "prefs": {"email_alerts": True, "push_alerts": True},
+        "prefs": {"email_alerts": True, "push_alerts": True, "lang": "en"},
         "suspended": suspended,
         "joined_at": joined or store.now_ms(), "last_login_at": None,
     }

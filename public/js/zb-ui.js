@@ -137,10 +137,10 @@ window.ZB = window.ZB || {};
   }
 
   var FALLBACK_CURRENCIES = {
-    USD: { symbol: '$', name: 'US Dollar', decimals: 2 },
-    EUR: { symbol: '€', name: 'Euro', decimals: 2 },
-    GBP: { symbol: '£', name: 'British Pound', decimals: 2 },
-    KRW: { symbol: '₩', name: 'South Korean Won', decimals: 0 }
+    USD: { symbol: '$', name: ZB.t("US Dollar"), decimals: 2 },
+    EUR: { symbol: '€', name: ZB.t("Euro"), decimals: 2 },
+    GBP: { symbol: '£', name: ZB.t("British Pound"), decimals: 2 },
+    KRW: { symbol: '₩', name: ZB.t("South Korean Won"), decimals: 0 }
   };
 
   function currencyList(src) {
@@ -169,10 +169,10 @@ window.ZB = window.ZB || {};
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function rel(ts) {
     var s = Math.max(1, (Date.now() - ts) / 1000);
-    if (s < 60) return 'just now';
-    if (s < 3600) return Math.floor(s / 60) + 'm ago';
-    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-    if (s < 604800) return Math.floor(s / 86400) + 'd ago';
+    if (s < 60) return ZB.t("just now");
+    if (s < 3600) return Math.floor(s / 60) + ZB.t("m ago");
+    if (s < 86400) return Math.floor(s / 3600) + ZB.t("h ago");
+    if (s < 604800) return Math.floor(s / 86400) + ZB.t("d ago");
     return dateShort(ts);
   }
   function dateShort(ts) {
@@ -243,7 +243,7 @@ window.ZB = window.ZB || {};
       '<div class="modal-head"><h3>' + esc(title) + '</h3></div>' +
       '<p class="muted" style="font-size:14px">' + esc(text) + '</p>' +
       '<div class="modal-actions">' +
-      '<button class="btn ghost" data-x-close>Cancel</button>' +
+      "<button class=\"btn ghost\" data-x-close>" + ZB.t("Cancel") + "</button>" +
       '<button class="btn ' + (danger ? 'danger' : 'primary') + '" id="cf-yes">' + esc(actionLabel) + '</button>' +
       '</div>');
     var ov = document.getElementById('modal-ov');
@@ -337,9 +337,9 @@ window.ZB = window.ZB || {};
       var ha = (a[i] / max) * (h - pad * 2);
       var hb = (b[i] / max) * (h - pad * 2);
       out += '<rect x="' + (cx - bw - 2) + '" y="' + (h - pad - ha) + '" width="' + bw + '" height="' + Math.max(ha, 2) +
-        '" rx="3" fill="' + c1 + '"><title>In: ' + compact(a[i]) + '</title></rect>';
+        '" rx="3" fill="' + c1 + "\"><title>" + ZB.t("In:") + " " + compact(a[i]) + '</title></rect>';
       out += '<rect x="' + (cx + 2) + '" y="' + (h - pad - hb) + '" width="' + bw + '" height="' + Math.max(hb, 2) +
-        '" rx="3" fill="' + c2 + '"><title>Out: ' + compact(b[i]) + '</title></rect>';
+        '" rx="3" fill="' + c2 + "\"><title>" + ZB.t("Out:") + " " + compact(b[i]) + '</title></rect>';
       if (n <= 16 || i % 2 === 0) {
         out += '<text x="' + cx + '" y="' + (h - 7) + '" text-anchor="middle" font-size="9.5" fill="#52606d">' +
           labels[i] + '</text>';
@@ -351,7 +351,7 @@ window.ZB = window.ZB || {};
   var DONUT_COLORS = ['#004977', '#117aca', '#5b9bd5', '#1e7e34', '#c05621', '#6b7c93'];
   function donut(segs, centerTop, centerSub) {
     var total = segs.reduce(function (s, x) { return s + x.value; }, 0);
-    if (!total) return '<div class="empty tiny">No data yet</div>';
+    if (!total) return "<div class=\"empty tiny\">" + ZB.t("No data yet") + "</div>";
     var R = 52, C = 2 * Math.PI * R, off = 0, arcs = '';
     segs.forEach(function (sg, i) {
       var frac = sg.value / total;
@@ -430,7 +430,7 @@ window.ZB = window.ZB || {};
   /* ------------------------------------------------------------- misc -- */
   function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { toast('Copied to clipboard'); })
+      navigator.clipboard.writeText(text).then(function () { toast(ZB.t("Copied to clipboard")); })
         .catch(function () { fallbackCopy(text); });
     } else fallbackCopy(text);
   }
@@ -438,8 +438,8 @@ window.ZB = window.ZB || {};
     var ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); toast('Copied to clipboard'); }
-    catch (e) { toast('Copy failed', 'err'); }
+    try { document.execCommand('copy'); toast(ZB.t("Copied to clipboard")); }
+    catch (e) { toast(ZB.t("Copy failed"), 'err'); }
     ta.remove();
   }
   function debounce(fn, ms) {
@@ -453,18 +453,18 @@ window.ZB = window.ZB || {};
   function agoBadge(ts) { return '<span class="tiny faint">' + rel(ts) + '</span>'; }
 
   var TX_META = {
-    deposit: { label: 'Deposit', dir: 'in', icon: 'download' },
-    transfer_in: { label: 'Transfer in', dir: 'in', icon: 'send' },
-    interest: { label: 'Interest', dir: 'in', icon: 'percent' },
-    exchange_in: { label: 'Exchange', dir: 'in', icon: 'swap' },
-    loan_disbursement: { label: 'Loan', dir: 'in', icon: 'banknote' },
-    reversal: { label: 'Reversal', dir: 'neutral', icon: 'rotate' },
-    adjustment: { label: 'Adjustment', dir: 'neutral', icon: 'edit' },
-    transfer_out: { label: 'Transfer', dir: 'out', icon: 'send' },
-    payment: { label: 'Payment', dir: 'out', icon: 'receipt' },
-    fee: { label: 'Fee', dir: 'out', icon: 'receipt' },
-    loan_payment: { label: 'Loan payment', dir: 'out', icon: 'banknote' },
-    exchange_out: { label: 'Exchange', dir: 'out', icon: 'swap' }
+    deposit: { label: ZB.t("Deposit"), dir: 'in', icon: 'download' },
+    transfer_in: { label: ZB.t("Transfer in"), dir: 'in', icon: 'send' },
+    interest: { label: ZB.t("Interest"), dir: 'in', icon: 'percent' },
+    exchange_in: { label: ZB.t("Exchange"), dir: 'in', icon: 'swap' },
+    loan_disbursement: { label: ZB.t("Loan"), dir: 'in', icon: 'banknote' },
+    reversal: { label: ZB.t("Reversal"), dir: 'neutral', icon: 'rotate' },
+    adjustment: { label: ZB.t("Adjustment"), dir: 'neutral', icon: 'edit' },
+    transfer_out: { label: ZB.t("Transfer"), dir: 'out', icon: 'send' },
+    payment: { label: ZB.t("Payment"), dir: 'out', icon: 'receipt' },
+    fee: { label: ZB.t('Fee'), dir: 'out', icon: 'receipt' },
+    loan_payment: { label: ZB.t("Loan payment"), dir: 'out', icon: 'banknote' },
+    exchange_out: { label: ZB.t("Exchange"), dir: 'out', icon: 'swap' }
   };
 
   function txRow(t, opts) {
@@ -476,9 +476,9 @@ window.ZB = window.ZB || {};
     if (opts.showAccount !== false && t.account_label) sub.push(t.account_label);
     if (t.note) sub.push(t.note);
     var statusPill = '';
-    if (t.status === 'pending') statusPill = '<span class="pill amber plain">Pending</span>';
-    else if (t.status === 'rejected') statusPill = '<span class="pill red plain">Rejected</span>';
-    else if (t.status === 'reversed') statusPill = '<span class="pill gray plain">Reversed</span>';
+    if (t.status === 'pending') statusPill = "<span class=\"pill amber plain\">" + ZB.t("Pending") + "</span>";
+    else if (t.status === 'rejected') statusPill = "<span class=\"pill red plain\">" + ZB.t("Rejected") + "</span>";
+    else if (t.status === 'reversed') statusPill = "<span class=\"pill gray plain\">" + ZB.t("Reversed") + "</span>";
     return '<div class="tx-row" ' + (opts.attr || '') + '>' +
       '<div class="tx-icon ' + cls + '">' + icon(meta.icon, 17) + '</div>' +
       '<div class="tx-main"><b>' + esc(t.counterparty || meta.label) + '</b>' +

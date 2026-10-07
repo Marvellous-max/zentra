@@ -426,3 +426,22 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-wid
   .content { padding: 14px 12px 64px; }
   .table-wrap { -webkit-overflow-scrolling: touch; }
 }
+
+/* ---------------------------------------------------------- language --- */
+.lang-switch {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.lang-switch:hover { background: var(--bg-tint); color: var(--text); border-color: var(--line-strong); }
+.pub-nav .lang-switch { margin-left: 6px; }
+.topbar .lang-switch { margin-right: 4px; }

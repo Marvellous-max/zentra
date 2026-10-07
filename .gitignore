@@ -5,3 +5,4 @@ server/data-selftest/
 __pycache__/
 *.pyc
 .DS_Store
+.browser-control/

@@ -1,6 +1,7 @@
 """In-process end-to-end exercise of every banking flow. Run: python3 selftest.py"""
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -13,6 +14,7 @@ import store
 store.DATA_DIR = os.path.join(HERE, "data-selftest")
 store.DB_PATH = os.path.join(store.DATA_DIR, "db.json")
 shutil.rmtree(store.DATA_DIR, ignore_errors=True)
+store.load_locales()
 
 import authx
 import routing
@@ -37,7 +39,8 @@ def call(method, path, body=None, token=None, query=None):
     if method == "POST" and "pin" not in body:
         body["pin"] = "1234"          # default seeded transaction PIN
     ctx = {"db": store.load(), "params": params, "query": query or {}, "body": body,
-           "user": None, "token": token, "ua": "selftest", "ip": "127.0.0.1"}
+           "user": None, "token": token, "ua": "selftest", "ip": "127.0.0.1",
+           "lang": os.environ.get("SELFTEST_LANG", "en")}
     if r["auth"]:
         u = authx.resolve_user(ctx["db"], token)
         if not u:
@@ -315,7 +318,7 @@ def main():
     try:
         call("POST", "/api/user/cards", {"account_id": chk_id, "type": "virtual"}, token=tok)
     except routing.ApiError as e:
-        capped = "virtual cards" in e.message
+        capped = "virtual cards" in e.message or "가상 카드" in e.message
     check("virtual card cap enforced", capped)
     # physical card charges fee
     r = call("POST", "/api/user/cards", {"account_id": chk_id, "type": "physical",
@@ -683,6 +686,108 @@ def main():
     linked = [n for n in notes if n.get("link", "").startswith("#/")]
     check("alerts carry branded from-address", len(branded) >= 2, len(branded))
     check("alerts carry deep links", len(linked) >= 2, len(linked))
+
+    # ---------------------------------------------------------------- i18n --
+    ko = store.LOCALES.get("ko") or {}
+    check("korean locale loaded", bool(ko), len(ko))
+    check("korean locale coverage", len(ko) >= 180, len(ko))
+    check("locale keys are unique non-empty strings",
+          len(ko) == len(set(ko)) and all(isinstance(k, str) and k.strip() for k in ko))
+    check("locale values are non-empty strings",
+          all(isinstance(v, str) and v.strip() for v in ko.values()))
+    check("locale values have no replacement chars",
+          not any("�" in v for v in ko.values()))
+    prose = [v for v in ko.values()
+             if len(v) > 24 and not v.startswith("%") and "Zentra" not in v]
+    hangul = [v for v in prose if any("가" <= ch <= "힣" for ch in v)]
+    check("korean values contain hangul", len(hangul) >= max(1, int(len(prose) * 0.9)),
+          "%d/%d" % (len(hangul), len(prose)))
+    check("every locale file has a LANGS entry",
+          all(f in store.LANGS for f in store.LOCALES), list(store.LOCALES))
+    check("T falls back to English key", store.T("ko", "nope.not.a.key") == "nope.not.a.key")
+    check("T translates plain messages",
+          store.T("ko", "Insufficient funds.") == ko.get("Insufficient funds."))
+    check("T interpolates args", store.T("ko", "Dear %s,", "Jordan") == "Jordan님 안녕하세요,")
+    check("T handles unknown language",
+          store.T("fr", "Insufficient funds.") == "Insufficient funds.")
+    check("T tolerates a ctx dict", store.T({"lang": "ko"}, "Insufficient funds.")
+          == ko.get("Insufficient funds."))
+    check("T tolerates None language", store.T(None, "Insufficient funds.") == "Insufficient funds.")
+
+    # frontend catalog: every literal ZB.t() key used by the shipped views
+    def _js_unescape(s):
+        out, i = [], 0
+        esc = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\", "/": "/"}
+        while i < len(s):
+            if s[i] == "\\" and i + 1 < len(s):
+                out.append(esc.get(s[i + 1], "\\" + s[i + 1]))
+                i += 2
+            else:
+                out.append(s[i])
+                i += 1
+        return "".join(out)
+
+    def _js_string_keys(path):
+        src = open(path, encoding="utf-8").read()
+        keys = []
+        for m in re.finditer(r"ZB\.t\(", src):
+            i, depth, lits = m.end(), 1, []
+            while i < len(src) and depth:
+                c = src[i]
+                if c in "\"'":
+                    j = i + 1
+                    while j < len(src) and src[j] != c:
+                        j += 2 if src[j] == "\\" else 1
+                    lits.append((i, j + 1))
+                    i = j + 1
+                    continue
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                i += 1
+            for a, b in lits:
+                k = a - 1
+                while k >= 0 and src[k] in " \t\n\r":
+                    k -= 1
+                prev = src[k] if k >= 0 else ""
+                j = b
+                while j < len(src) and src[j] in " \t\n\r":
+                    j += 1
+                if prev not in "([?:,":
+                    continue                      # e.g.  "+ \"x\""  => dynamic
+                if j < len(src) and src[j] == "+":
+                    continue                      # concatenated => dynamic
+                keys.append(_js_unescape(src[a + 1:b - 1]))
+        return keys
+
+    pub = os.path.join(HERE, "..", "public")
+    kojs = open(os.path.join(pub, "js", "locales", "ko.js"), encoding="utf-8").read()
+    m = re.search(r"ZB\.LOCALES\.ko\s*=\s*\{(.*)\};", kojs, re.S)
+    fe = json.loads("{" + m.group(1) + "}") if m else {}
+    check("frontend korean catalog loads", len(fe) >= 600, len(fe))
+
+    used = set()
+    for rel in ("js/app.js", "js/zb-ui.js", "js/views/public.js", "js/views/user.js"):
+        p = os.path.join(pub, rel)
+        if os.path.exists(p):
+            used.update(_js_string_keys(p))
+    # deliberately untranslated: brand, acronyms and sample data that must not change
+    identity = {
+        "Zentra", "Zentra Bank", "ACCOUNT", "APY", "CFO", "CSV", "OPS", "STAFF",
+        "A. STERLING", "J. MILES", "Marcus T.", "Priya R.", "Sarah K.", "NORTHWIND LLC",
+        "4020 &nbsp;•••• &nbsp;•••• &nbsp;4977",
+        "4773 &nbsp;•••• &nbsp;•••• &nbsp;1120",
+        "8810 &nbsp;•••• &nbsp;•••• &nbsp;3301",
+    }
+    missing = sorted(k for k in used if k and k not in fe and k not in identity)
+    check("frontend t() keys are translated", not missing,
+          "%d missing: %s" % (len(missing), "; ".join(missing[:3])[:180]))
+    stray = sorted(set(fe) - used)
+    check("frontend catalog has no stray keys", not stray,
+          "extra: %s" % "; ".join(stray[:3])[:180])
+    check("identity fallback keys stay out of the catalog",
+          not (identity & set(fe)), sorted(identity & set(fe))[:3])
 
     print("")
     print("PASSED: %d" % len(PASS))

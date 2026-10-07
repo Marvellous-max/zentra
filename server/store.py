@@ -23,6 +23,46 @@ CURRENCIES = {"USD": {"symbol": "$", "name": "US Dollar", "decimals": 2},
               "GBP": {"symbol": "\u00a3", "name": "British Pound", "decimals": 2},
               "KRW": {"symbol": "₩", "name": "South Korean Won", "decimals": 0}}
 
+LANGS = {"en": "English", "ko": "한국어"}
+
+LOCALES = {}
+
+
+def load_locales():
+    """Load server/locales/<lang>.json into LOCALES (English string = key)."""
+    global LOCALES
+    LOCALES = {}
+    d = os.path.join(BASE_DIR, "server", "locales")
+    if not os.path.isdir(d):
+        return LOCALES
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(d, fn), encoding="utf-8") as fh:
+                LOCALES[fn[:-5]] = json.load(fh)
+        except Exception as e:
+            _log.warning("locale %s failed to load: %s", fn, e)
+    return LOCALES
+
+
+def T(lang, key, *args):
+    """Translate `key` for `lang`, interpolating `args` with % if given.
+
+    A missing translation returns the English key unchanged, so partial
+    coverage is always safe. `lang` may be a tag, a ctx dict, or None.
+    """
+    if not isinstance(lang, str):
+        lang = ((lang or {}).get("lang") or "en") if isinstance(lang, dict) else "en"
+    table = LOCALES.get(lang)
+    s = table.get(key, key) if isinstance(table, dict) else key
+    if args:
+        try:
+            s = s % args
+        except Exception:
+            pass
+    return s
+
 
 def r2(x):
     """Round money to 2 decimals (float-safe)."""
@@ -280,6 +320,10 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
       True = handed to the provider, False = provider rejected it,
       None = nothing sent (no provider configured, or no address on file).
     """
+    u = find_user(db, user_id)
+    lang = ((u or {}).get("prefs") or {}).get("lang") or "en"
+    title = T(lang, title)
+    body = T(lang, body)
     db["notifications"].append({
         "id": nid(), "user_id": user_id, "title": title, "body": body,
         "read": False, "created_at": created_at or now_ms(),
@@ -289,12 +333,13 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
     result = None
     try:
         import mail
-        u = find_user(db, user_id)
+        u = u or find_user(db, user_id)
         if u and u.get("email"):
             result = mail.send(u["email"], title, body,
                                kind=kind, rows=rows, ref=ref,
                                cta=cta or (link or None),
-                               greet=greet or ((u.get("name") or "").split() or [""])[0])
+                               greet=greet or ((u.get("name") or "").split() or [""])[0],
+                               lang=lang)
             log_delivery(db, u["email"], title, result)
     except Exception as e:
         _log.warning("outbound mail to user %s raised: %s", user_id, e)

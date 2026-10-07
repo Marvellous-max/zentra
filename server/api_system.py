@@ -104,9 +104,9 @@ def put_settings(ctx):
             try:
                 v = store.r2(float(b[k]))
             except (TypeError, ValueError):
-                raise ApiError("%s must be a number." % k)
+                raise ApiError(store.T(ctx["lang"], "%s must be a number.", k))
             if v < lo or v > hi:
-                raise ApiError("%s must be between %s and %s." % (k, lo, hi))
+                raise ApiError(store.T(ctx["lang"], "%s must be between %s and %s.", *(k, lo, hi)))
             if s.get(k) != v:
                 changes.append((k, s.get(k), v))
                 s[k] = v
@@ -132,7 +132,7 @@ def put_settings(ctx):
             raise ApiError("Loan terms must be integers.")
         terms = [t for t in terms if t in VALID_TERMS]
         if not terms:
-            raise ApiError("Pick at least one valid term (%s)." % VALID_TERMS)
+            raise ApiError(store.T(ctx["lang"], "Pick at least one valid term (%s).", VALID_TERMS))
         if terms != s.get("loan_terms_months"):
             changes.append(("loan_terms_months", s.get("loan_terms_months"), terms))
             s["loan_terms_months"] = terms
@@ -146,9 +146,9 @@ def put_settings(ctx):
             try:
                 v = float(val)
             except (TypeError, ValueError):
-                raise ApiError("FX rate for %s must be a number." % cur)
+                raise ApiError(store.T(ctx["lang"], "FX rate for %s must be a number.", cur))
             if v <= 0 or v > 10000:
-                raise ApiError("FX rate for %s out of range." % cur)
+                raise ApiError(store.T(ctx["lang"], "FX rate for %s out of range.", cur))
             if cur == "USD" and abs(v - 1.0) > 1e-9:
                 raise ApiError("USD is the base currency — its rate stays 1.")
             if fx.get(cur) != v:

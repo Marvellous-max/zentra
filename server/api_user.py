@@ -26,13 +26,13 @@ def get_own_account(ctx, acct_id):
     return acct
 
 
-def parse_amount(raw, minv=0.01, maxv=10_000_000):
+def parse_amount(raw, minv=0.01, maxv=10_000_000, lang="en"):
     try:
         amt = store.r2(float(str(raw).replace(",", "")))
     except (TypeError, ValueError):
         raise ApiError("Enter a valid amount.")
     if amt < minv:
-        raise ApiError("Minimum amount is %s." % store.fmt_money(minv))
+        raise ApiError(store.T(lang, "Minimum amount is %s.", store.fmt_money(minv)))
     if amt > maxv:
         raise ApiError("Amount is too large.")
     return amt
@@ -45,15 +45,14 @@ def check_maintenance(ctx):
 
 def check_flags(ctx, key, label):
     if not ctx["db"]["settings"].get(key, True):
-        raise ApiError("%s is temporarily disabled by the bank." % label, 503)
+        raise ApiError(store.T(ctx["lang"], "%s is temporarily disabled by the bank.", label), 503)
 
 
 def kyc_gate(ctx, amount_usd):
     db = ctx["db"]
     threshold = float(db["settings"].get("kyc_required_over", 0) or 0)
     if threshold and amount_usd > threshold and ctx["user"].get("kyc_status") != "verified":
-        raise ApiError("Transfers over %s require identity verification. Verify your ID in Settings → Verification."
-                       % store.fmt_money(threshold))
+        raise ApiError(store.T(ctx["lang"], "Transfers over %s require identity verification. Verify your ID in Settings → Verification.", store.fmt_money(threshold)))
 
 
 def guard_account(ctx, acct):
@@ -298,8 +297,8 @@ def create_account(ctx):
     if kind not in ("checking", "savings"):
         raise ApiError("Unsupported account type.")
     acct = open_account(db, ctx["user"], label[:40], kind, currency)
-    store.notify(db, ctx["user"]["id"], "%s account opened" % acct["label"],
-                 "Account %s is ready to use." % acct["number"], kind="success",
+    store.notify(db, ctx["user"]["id"], store.T(ctx["lang"], "%s account opened", acct["label"]),
+                 store.T(ctx["lang"], "Account %s is ready to use.", acct["number"]), kind="success",
                  cta="#/app/accounts",
                  rows=[("Account", acct["label"]), ("Number", acct["number"]),
                        ("Currency", acct["currency"])])
@@ -324,7 +323,7 @@ def deposit(ctx):
     db = ctx["db"]
     acct = get_own_account(ctx, ctx["body"].get("account_id"))
     guard_account(ctx, acct)
-    amt = parse_amount(ctx["body"].get("amount"), float(db["settings"].get("min_deposit", 5)))
+    amt = parse_amount(ctx["body"].get("amount"), float(db["settings"].get("min_deposit", 5)), lang=ctx.get("lang"))
     method = ctx["body"].get("method") or "bank"
     if method not in ("card", "bank", "mobile"):
         method = "bank"
@@ -337,8 +336,7 @@ def deposit(ctx):
                         % (ctx["user"]["name"], labels[method].lower(),
                            store.fmt_money(amt, acct["currency"]), acct["label"]))
     store.notify(db, ctx["user"]["id"], "Top-up pending approval",
-                 "%s into %s is being reviewed — you'll be notified once it lands."
-                 % (store.fmt_money(amt, acct["currency"]), acct["label"]),
+                 store.T(ctx["lang"], "%s into %s is being reviewed — you'll be notified once it lands.", *(store.fmt_money(amt, acct["currency"]), acct["label"])),
                  link="#/app/statements", kind="info",
                  rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                        ("Method", labels[method].title()), ("Account", acct["label"]),
@@ -375,7 +373,7 @@ def transfer(ctx):
     mode = b.get("mode")  # own | zentra | external
     acct = get_own_account(ctx, b.get("from_account_id"))
     guard_account(ctx, acct)
-    amt = parse_amount(b.get("amount"))
+    amt = parse_amount(b.get("amount"), lang=ctx.get("lang"))
     note = (b.get("note") or "").strip()
     require_pin(ctx)
 
@@ -413,15 +411,13 @@ def transfer(ctx):
         kyc_gate(ctx, store.fx_to_usd(db, amt, acct["currency"]))
         left = daily_left(db, acct)
         if left is not None and store.fx_to_usd(db, amt + fee, acct["currency"]) > left:
-            raise ApiError("Daily transfer limit reached (%s remaining)." %
-                           store.fmt_money(max(left, 0), acct["currency"]))
+            raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).", store.fmt_money(max(left, 0), acct["currency"])))
         single = float(db["settings"].get("max_transfer_single", 0) or 0)
         if single and store.fx_to_usd(db, amt, acct["currency"]) > single:
-            raise ApiError("Single-transfer limit is %s." % store.fmt_money(single))
+            raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.", store.fmt_money(single)))
         need = amt + fee
         if acct["balance"] < need:
-            raise ApiError("Insufficient funds — you need %s incl. fees."
-                           % store.fmt_money(need, acct["currency"]))
+            raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s incl. fees.", store.fmt_money(need, acct["currency"])))
         name = dest_user["name"].split()[0].title()
         pair = store.pair_id()
         out = store.post(db, acct, -need, "transfer_out", counterparty=name,
@@ -431,15 +427,15 @@ def transfer(ctx):
         inn = store.post(db, dest, amt, "transfer_in", counterparty=_first(ctx["user"]["name"]),
                          note=note or "From %s" % _first(ctx["user"]["name"]), method="internal", pair=pair)
         store.notify(db, dest_user["id"], "Money received",
-                     "%s sent you %s." % (_first(ctx["user"]["name"]),
-                                          store.fmt_money(amt, dest["currency"])),
+                     store.T(ctx["lang"], "%s sent you %s.", *(_first(ctx["user"]["name"]),
+                                          store.fmt_money(amt, dest["currency"]))),
                      link="#/app/statements", kind="success",
                      rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, dest["currency"])),
                            ("From", ctx["user"]["name"]), ("Account", dest["label"]),
                            ("New balance", store.fmt_money(dest["balance"], dest["currency"]))],
                      ref=inn["ref"])
         store.notify(db, ctx["user"]["id"], "Transfer sent",
-                     "%s to %s · %s completed." % (store.fmt_money(amt, acct["currency"]), name, to_bank),
+                     store.T(ctx["lang"], "%s to %s · %s completed.", *(store.fmt_money(amt, acct["currency"]), name, to_bank)),
                      link="#/app/statements", kind="success",
                      rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                            ("To", name), ("Bank", to_bank),
@@ -470,14 +466,12 @@ def transfer(ctx):
         kyc_gate(ctx, store.fx_to_usd(db, amt, acct["currency"]))
         single = float(s.get("max_transfer_single", 0) or 0)
         if single and store.fx_to_usd(db, amt, acct["currency"]) > single:
-            raise ApiError("Single-transfer limit is %s." % store.fmt_money(single))
+            raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.", store.fmt_money(single)))
         left = daily_left(db, acct)
         if left is not None and store.fx_to_usd(db, amt + fee, acct["currency"]) > left:
-            raise ApiError("Daily transfer limit reached (%s remaining)." %
-                           store.fmt_money(max(left, 0), acct["currency"]))
+            raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).", store.fmt_money(max(left, 0), acct["currency"])))
         if acct["balance"] < amt + fee:
-            raise ApiError("Insufficient funds — you need %s incl. fees."
-                           % store.fmt_money(amt + fee, acct["currency"]))
+            raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s incl. fees.", store.fmt_money(amt + fee, acct["currency"])))
         auto = float(s.get("external_auto_limit", 0) or 0)
         goes_pending = store.fx_to_usd(db, amt, acct["currency"]) > auto
         status = "pending" if goes_pending else "completed"
@@ -490,9 +484,8 @@ def transfer(ctx):
                                 "%s requested an external payout of %s to %s."
                                 % (ctx["user"]["name"], store.fmt_money(amt, acct["currency"]), ben_name))
             store.notify(db, ctx["user"]["id"], "Payout pending approval",
-                         "Your transfer of %s to %s is being reviewed by our team — "
-                         "typical approval within a few hours."
-                         % (store.fmt_money(amt, acct["currency"]), ben_name),
+                         store.T(ctx["lang"], "Your transfer of %s to %s is being reviewed by our team — "
+                         "typical approval within a few hours.", *(store.fmt_money(amt, acct["currency"]), ben_name)),
                          link="#/app/statements", kind="info",
                          rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                                ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
@@ -502,7 +495,7 @@ def transfer(ctx):
                         severity="warn", to=ben_name)
         else:
             store.notify(db, ctx["user"]["id"], "Payout sent",
-                         "%s was sent to %s." % (store.fmt_money(amt, acct["currency"]), ben_name),
+                         store.T(ctx["lang"], "%s was sent to %s.", *(store.fmt_money(amt, acct["currency"]), ben_name)),
                          link="#/app/statements", kind="success",
                          rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                                ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
@@ -586,7 +579,7 @@ def exchange(ctx):
         raise ApiError("Pick two different accounts.")
     if src["currency"] == dst["currency"]:
         raise ApiError("Use Transfer between accounts of the same currency.")
-    amt = parse_amount(b.get("amount"))
+    amt = parse_amount(b.get("amount"), lang=ctx.get("lang"))
     if src["balance"] < amt:
         raise ApiError("Insufficient funds.")
     fx = db["settings"]["fx"]
@@ -601,8 +594,8 @@ def exchange(ctx):
                      note="Exchanged @ %.4f (fee %.2f%%)" % (rate, fee_pct), fee=store.r2(gross - net),
                      pair=pair)
     store.notify(db, ctx["user"]["id"], "Exchange completed",
-                 "%s → %s @ %.4f" % (store.fmt_money(amt, src["currency"]),
-                                     store.fmt_money(net, dst["currency"]), rate),
+                 store.T(ctx["lang"], "%s → %s @ %.4f", *(store.fmt_money(amt, src["currency"]),
+                                     store.fmt_money(net, dst["currency"]), rate)),
                  kind="success",
                  rows=[("You sent", store.fmt_money(amt, src["currency"])),
                        ("You received", "<b>%s</b>" % store.fmt_money(net, dst["currency"])),
@@ -696,11 +689,10 @@ def new_card(ctx):
     virtuals = sum(1 for c in db["cards"] if c["user_id"] == ctx["user"]["id"]
                    and c["type"] == "virtual" and c["status"] == "active")
     if ctype == "virtual" and virtuals >= int(db["settings"].get("max_virtual_cards", 3)):
-        raise ApiError("You already hold %d active virtual cards." % virtuals)
+        raise ApiError(store.T(ctx["lang"], "You already hold %d active virtual cards.", virtuals))
     fee = float(db["settings"].get("card_issue_fee", 0) or 0) if ctype == "physical" else 0.0
     if fee and acct["balance"] < fee:
-        raise ApiError("Physical cards cost a %s issue fee — insufficient funds."
-                       % store.fmt_money(fee, acct["currency"]))
+        raise ApiError(store.T(ctx["lang"], "Physical cards cost a %s issue fee — insufficient funds.", store.fmt_money(fee, acct["currency"])))
     num = store.gen_card_number()
     now_t = time.gmtime()
     year = now_t.tm_year + 4
@@ -720,7 +712,7 @@ def new_card(ctx):
         store.post(db, acct, -fee, "fee", counterparty="Zentra Bank",
                    note="Physical card issue fee")
     store.notify(db, ctx["user"]["id"], "Card issued",
-                 "Your %s card \u2022%s is ready." % (ctype, card["last4"]),
+                 store.T(ctx["lang"], "Your %s card \u2022%s is ready.", *(ctype, card["last4"])),
                  kind="success", cta="#/app/cards",
                  rows=[("Card", card["label"]), ("Number", card["masked"]),
                        ("Brand", "Visa"), ("Type", "Virtual" if ctype == "virtual" else "Physical")])
@@ -748,7 +740,7 @@ def card_limit(ctx):
     if not card or card["user_id"] != ctx["user"]["id"]:
         raise ApiError("Card not found.", 404)
     raw = ctx["body"].get("limit_monthly")
-    card["limit_monthly"] = None if raw in (None, "", 0) else parse_amount(raw, 1)
+    card["limit_monthly"] = None if raw in (None, "", 0) else parse_amount(raw, 1, lang=ctx.get("lang"))
     return {"card": card_view(card)}
 
 
@@ -788,7 +780,7 @@ def pay_bill(ctx):
     b = ctx["body"]
     acct = get_own_account(ctx, b.get("account_id"))
     guard_account(ctx, acct)
-    amt = parse_amount(b.get("amount"))
+    amt = parse_amount(b.get("amount"), lang=ctx.get("lang"))
     biller = (b.get("biller") or "").strip()
     category = (b.get("category") or "").strip() or "other"
     ref_no = (b.get("customer_ref") or "").strip()
@@ -800,7 +792,7 @@ def pay_bill(ctx):
     t = store.post(db, acct, -amt, "payment", counterparty=biller[:80], category=category[:30],
                    note=("Customer ref %s" % ref_no) if ref_no else "", method="bill")
     store.notify(db, ctx["user"]["id"], "Payment successful",
-                 "%s paid to %s." % (store.fmt_money(amt, acct["currency"]), biller),
+                 store.T(ctx["lang"], "%s paid to %s.", *(store.fmt_money(amt, acct["currency"]), biller)),
                  link="#/app/statements", kind="success",
                  rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                        ("Biller", biller[:80]), ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
@@ -852,7 +844,8 @@ def request_loan(ctx):
     acct = get_own_account(ctx, b.get("account_id"))
     guard_account(ctx, acct)
     amt = parse_amount(b.get("amount"), float(db["settings"].get("min_loan", 500)),
-                       float(db["settings"].get("max_loan", 50000)))
+                       float(db["settings"].get("max_loan", 50000)),
+                       lang=ctx.get("lang"))
     term = int(b.get("term_months") or 12)
     terms = [int(x) for x in db["settings"].get("loan_terms_months", [12])]
     if term not in terms:
@@ -872,8 +865,7 @@ def request_loan(ctx):
                         "%s requested %s over %dm @ %.1f%%."
                         % (ctx["user"]["name"], store.fmt_money(amt, acct["currency"]), term, apr))
     store.notify(db, ctx["user"]["id"], "Loan request submitted",
-                 "We're reviewing your request for %s — you'll be notified shortly."
-                 % store.fmt_money(amt, acct["currency"]))
+                 store.T(ctx["lang"], "We're reviewing your request for %s — you'll be notified shortly.", store.fmt_money(amt, acct["currency"])))
     store.audit(db, ctx["user"], "loan.request", "loan:%d" % loan["id"], amount=amt, term=term,
                 severity="warn")
     return {"loan": loan_view(db, loan)}
@@ -892,7 +884,7 @@ def repay_loan(ctx):
     b = ctx["body"]
     acct = get_own_account(ctx, b.get("account_id") or loan.get("account_id"))
     guard_account(ctx, acct)
-    amt = parse_amount(b.get("amount"))
+    amt = parse_amount(b.get("amount"), lang=ctx.get("lang"))
     amt = min(amt, view["remaining"])
     if amt <= 0:
         raise ApiError("This loan is already settled.")
@@ -905,7 +897,7 @@ def repay_loan(ctx):
         loan["status"] = "repaid"
         loan["closed_at"] = store.now_ms()
         store.notify(db, ctx["user"]["id"], "Loan settled 🎉",
-                     "Loan #%d is fully repaid. Congratulations!" % loan["id"],
+                     store.T(ctx["lang"], "Loan #%d is fully repaid. Congratulations!", loan["id"]),
                      kind="success", cta="#/app/loans",
                      rows=[("Loan", "#%d" % loan["id"]),
                            ("Final payment", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
@@ -948,8 +940,7 @@ def cancel_request(ctx):
                             "%s withdrew their %s top-up request before review."
                             % (ctx["user"]["name"], amt))
         store.notify(db, ctx["user"]["id"], "Top-up request cancelled",
-                     "Your %s top-up request was cancelled. Nothing left your account."
-                     % amt, link="#/app/statements", kind="info",
+                     store.T(ctx["lang"], "Your %s top-up request was cancelled. Nothing left your account.", amt), link="#/app/statements", kind="info",
                      rows=[("Amount", amt), ("Method", (t.get("note") or "").replace("Top-up request · ", "").title() or "—"),
                            ("Status", "Withdrawn by you")],
                      ref=t["ref"])
@@ -961,8 +952,7 @@ def cancel_request(ctx):
                             "returned to their balance." % (ctx["user"]["name"], amt,
                                                             t.get("counterparty") or "external bank"))
         store.notify(db, ctx["user"]["id"], "Payout cancelled",
-                     "Your %s payout to %s was cancelled and the funds are back in your %s."
-                     % (amt, t.get("counterparty") or "external bank", acct["label"]),
+                     store.T(ctx["lang"], "Your %s payout to %s was cancelled and the funds are back in your %s.", *(amt, t.get("counterparty") or "external bank", acct["label"])),
                      link="#/app/statements", kind="info",
                      rows=[("Amount", "<b>%s</b>" % amt), ("Beneficiary", t.get("counterparty") or "—"),
                            ("Status", "Withdrawn by you"), ("Funds", "Returned to balance")],
@@ -995,7 +985,7 @@ def cancel_loan_request(ctx):
                         "%s withdrew their %s loan application before review."
                         % (ctx["user"]["name"], amt))
     store.notify(db, ctx["user"]["id"], "Loan application withdrawn",
-                 "Your %s loan application was withdrawn — nothing was owed or disbursed." % amt,
+                 store.T(ctx["lang"], "Your %s loan application was withdrawn — nothing was owed or disbursed.", amt),
                  link="#/app/loans")
     store.audit(db, ctx["user"], "loan.cancel", "loan:%d" % loan["id"],
                 severity="info", amount=loan["principal"])
@@ -1044,8 +1034,10 @@ def update_profile(ctx):
     u["country"] = (b.get("country") or "").strip()[:40]
     prefs = b.get("prefs")
     if isinstance(prefs, dict):
+        lang = prefs.get("lang")
         u["prefs"] = {"email_alerts": bool(prefs.get("email_alerts", True)),
-                      "push_alerts": bool(prefs.get("push_alerts", True))}
+                      "push_alerts": bool(prefs.get("push_alerts", True)),
+                      "lang": lang if lang in store.LANGS else "en"}
     store.audit(ctx["db"], u, "profile.update", "user:%d" % u["id"])
     return {"user": store.public_user(u)}
 

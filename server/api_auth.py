@@ -67,9 +67,8 @@ def register(ctx):
     db["users"].append(user)
     acct = open_account(db, user, "Everyday Checking", "checking", currency)
     token = authx.issue_token(db, user["id"], ctx.get("ua", ""), ctx.get("ip", ""))
-    store.notify(db, user["id"], "Welcome to %s 🎉" % db["settings"]["site_name"],
-                 "Your %s account %s is open and ready. Add money to get started."
-                 % (acct["label"], acct["number"]),
+    store.notify(db, user["id"], store.T(ctx["lang"], "Welcome to %s 🎉", db["settings"]["site_name"]),
+                 store.T(ctx["lang"], "Your %s account %s is open and ready. Add money to get started.", *(acct["label"], acct["number"])),
                  link="#/app/accounts", kind="success", cta="#/app",
                  rows=[("Account", acct["label"]), ("Number", acct["number"]),
                        ("Currency", currency), ("Next step", "Make your first top-up")])

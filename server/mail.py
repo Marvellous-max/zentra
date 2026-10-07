@@ -18,6 +18,15 @@ import smtplib
 import urllib.request
 from email.message import EmailMessage
 
+import store as _store
+
+
+def _T(lang, key, *args):
+    try:
+        return _store.T(lang, key, *args)
+    except Exception:
+        return key
+
 _log = logging.getLogger("mail")
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
@@ -77,11 +86,11 @@ FONT = ("font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,"
         "Helvetica,Arial,sans-serif")
 
 
-def _greet_html(greet):
+def _greet_html(greet, lang="en"):
     if not greet:
         return ""
-    return ('<p style="margin:14px 0 10px;color:#5a6f82;font-size:14px">Dear %s,</p>'
-            % _esc(greet))
+    return ('<p style="margin:14px 0 10px;color:#5a6f82;font-size:14px">%s</p>'
+            % _esc(_T(lang, "Dear %s,", greet)))
 
 
 def _inner(inner):
@@ -92,7 +101,7 @@ def _inner(inner):
 
 
 def email_frame(kind="info", title="", greet="", inner="", rows=None,
-                cta=None, ref=None, preheader=None):
+                cta=None, ref=None, preheader=None, lang="en"):
     """Render the full Zentra letterhead.
 
     kind:   success | info | warning | critical  (accent colour + chip label)
@@ -101,8 +110,10 @@ def email_frame(kind="info", title="", greet="", inner="", rows=None,
     rows:   list of (label, value) — value may contain simple html (e.g. <b>)
     cta:    "#/app/statements" or ("#/app/cards", "Manage cards")
     ref:    transaction reference string
+    lang:   language tag for the fixed letterhead chrome
     """
     accent, chip = KINDS.get(kind, KINDS["info"])
+    chip = _T(lang, chip)
     rows = rows or []
     preheader = preheader or title
 
@@ -132,7 +143,7 @@ def email_frame(kind="info", title="", greet="", inner="", rows=None,
 
     cta_html = ""
     if cta:
-        target, label = cta if isinstance(cta, tuple) else (cta, "Sign in to Zentra")
+        target, label = cta if isinstance(cta, tuple) else (cta, _T(lang, "Sign in to Zentra"))
         href = target if target.startswith("http") else PUBLIC_URL + "/" + target.lstrip("#/")
         cta_html = (
             '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px">'
@@ -150,10 +161,10 @@ def email_frame(kind="info", title="", greet="", inner="", rows=None,
 <table role="presentation" cellpadding="0"><tr>
 <td style="padding-right:12px"><div style="width:38px;height:38px;background:#155a92;border-radius:10px;color:#ffffff;font-size:20px;font-weight:bold;text-align:center;line-height:38px">Z</div></td>
 <td><span style="color:#ffffff;font-size:19px;font-weight:700;letter-spacing:-.01em">Zentra</span><br>
-<span style="color:#8fb3d4;font-size:10px;letter-spacing:.18em">SECURE ACCOUNT NOTIFICATIONS</span></td>
+<span style="color:#8fb3d4;font-size:10px;letter-spacing:.18em">{_T(lang, "SECURE ACCOUNT NOTIFICATIONS")}</span></td>
 </tr></table></td></tr></table></td></tr>
 <tr><td style="height:4px;background:{accent};font-size:0">&nbsp;</td></tr>
-<tr><td style="padding:28px 32px 6px">{_greet_html(greet)}
+<tr><td style="padding:28px 32px 6px">{_greet_html(greet, lang)}
 <div style="color:{accent};font-size:11px;font-weight:700;letter-spacing:.14em">{chip}</div>
 <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;color:#12283a;font-weight:700">{_esc(title)}</h1>
 {_inner(inner)}
@@ -161,8 +172,8 @@ def email_frame(kind="info", title="", greet="", inner="", rows=None,
 </td></tr>
 <tr><td style="padding:6px 32px 26px">
 <div style="border-top:1px solid #edf2f7;padding-top:14px;color:#8ea2b5;font-size:11.5px;line-height:1.7">
-This is an automated message from Zentra. Never share your password or PIN &mdash; we will never email you asking for them.<br>
-Questions? Reply to this email or use the support desk in your Zentra app.
+{_T(lang, "This is an automated message from Zentra. Never share your password or PIN — we will never email you asking for them.")}<br>
+{_T(lang, "Questions? Reply to this email or use the support desk in your Zentra app.")}
 </div></td></tr>
 </table>
 <p style="margin:14px 0 0;color:#9db0c2;font-size:10.5px">{_esc(PUBLIC_URL)}</p>
@@ -257,7 +268,7 @@ def _send_smtp(to_addr, subject, text_part, html_part, sender):
 
 
 def send(to_addr, subject, body_txt, body_html=None, sender=None, kind="info",
-         rows=None, cta=None, greet=None, ref=None):
+         rows=None, cta=None, greet=None, ref=None, lang="en"):
     """Send one branded message. Tri-state: True / False / None (unconfigured)."""
     mode = provider()
     if not to_addr or mode is None:
@@ -268,7 +279,7 @@ def send(to_addr, subject, body_txt, body_html=None, sender=None, kind="info",
     html_part = email_frame(kind=kind, title=subject, greet=greet,
                             inner=body_html if body_html else _text_to_html(body_txt),
                             rows=rows, cta=cta, ref=ref,
-                            preheader=(body_txt or subject)[:90])
+                            preheader=(body_txt or subject)[:90], lang=lang)
     try:
         if mode == "brevo":
             ok = _send_brevo(to_addr, subject, text_part, html_part, sender)
