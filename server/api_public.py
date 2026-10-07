@@ -31,7 +31,7 @@ def bootstrap(ctx):
             "card_issue_fee": s.get("card_issue_fee"),
         },
         "loan_terms": sorted(s.get("loan_terms_months", [3, 6, 12, 24, 36, 48])),
-        "currencies": ["USD", "EUR", "GBP"],
+        "currencies": store.CURRENCIES,
         "registrations_open": bool(s.get("registrations_open", True)),
         "support_email": s.get("support_email"),
     }

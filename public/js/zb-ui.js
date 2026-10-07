@@ -113,12 +113,11 @@ window.ZB = window.ZB || {};
   function money(v, cur, opts) {
     cur = cur || 'USD';
     try {
-      var k = cur + (opts && opts.noDec ? '-nd' : '');
-      fmtCache[k] = fmtCache[k] || new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: cur,
-        minimumFractionDigits: opts && opts.noDec ? 0 : 2,
-        maximumFractionDigits: opts && opts.noDec ? 0 : 2
-      });
+      var noDec = opts && opts.noDec;
+      var k = cur + (noDec ? '-nd' : '');
+      fmtCache[k] = fmtCache[k] || new Intl.NumberFormat('en-US', noDec
+        ? { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }
+        : { style: 'currency', currency: cur });
       return fmtCache[k].format(v || 0);
     } catch (e) { return '$' + (Number(v) || 0).toFixed(2); }
   }
@@ -126,10 +125,42 @@ window.ZB = window.ZB || {};
     var v = Number(amount) || 0;
     return (v > 0 ? '+' : '') + money(v, cur);
   }
+  function curSymbol(cur) {
+    try {
+      var parts = new Intl.NumberFormat('en-US', { style: 'currency', currency: cur || 'USD' })
+        .formatToParts(1);
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].type === 'currency') return parts[i].value;
+      }
+    } catch (e) {}
+    return '$';
+  }
+
+  var FALLBACK_CURRENCIES = {
+    USD: { symbol: '$', name: 'US Dollar', decimals: 2 },
+    EUR: { symbol: '€', name: 'Euro', decimals: 2 },
+    GBP: { symbol: '£', name: 'British Pound', decimals: 2 },
+    KRW: { symbol: '₩', name: 'South Korean Won', decimals: 0 }
+  };
+
+  function currencyList(src) {
+    var obj = src;
+    if (Array.isArray(obj)) {
+      obj = {};
+      src.forEach(function (c) { obj[c] = { name: c }; });
+    }
+    if (!obj || !Object.keys(obj).length) obj = FALLBACK_CURRENCIES;
+    return Object.keys(obj).map(function (code) {
+      var d = obj[code] || {};
+      return { code: code, name: d.name || code, symbol: d.symbol || curSymbol(code),
+               decimals: typeof d.decimals === 'number' ? d.decimals : 2 };
+    });
+  }
+
   function compact(v, cur) {
     var n = Math.abs(Number(v) || 0);
     var sign = v < 0 ? '-' : '';
-    var sym = { USD: '$', EUR: '€', GBP: '£' }[cur] || '$';
+    var sym = curSymbol(cur);
     if (n >= 1e9) return sign + sym + (n / 1e9).toFixed(1) + 'B';
     if (n >= 1e6) return sign + sym + (n / 1e6).toFixed(2) + 'M';
     if (n >= 1e3) return sign + sym + (n / 1e3).toFixed(1) + 'k';
@@ -471,6 +502,7 @@ window.ZB = window.ZB || {};
 
   ZB.ui = {
     esc: esc, icon: icon, money: money, signedMoney: signedMoney, compact: compact,
+    curSymbol: curSymbol, currencyList: currencyList,
     rel: rel, dateShort: dateShort, dateTime: dateTime, monthName: monthName,
     hueColor: hueColor, initials: initials,
     toast: toast, modal: modal, closeModal: closeModal, confirmBox: confirmBox,

@@ -17,7 +17,7 @@ shutil.rmtree(store.DATA_DIR, ignore_errors=True)
 import authx
 import routing
 from seed import seed_if_empty
-import api_auth, api_user, api_admin, api_system  # noqa: F401 (register routes)
+import api_auth, api_user, api_admin, api_system, api_public  # noqa: F401 (register routes)
 
 
 PASS = []
@@ -287,6 +287,18 @@ def main():
                                             "amount": 50}, token=tok)
     check("exchange ok", r["ok"] and len(r["transactions"]) == 2)
 
+    # ---- Korean won ----
+    q = call("GET", "/api/user/exchange/quote", token=tok,
+             query={"from": "USD", "to": "KRW", "amount": "100"})
+    check("KRW quote math", abs(q["gross"] - 135000.0) < 1.0, q)
+    krw = call("POST", "/api/user/accounts", {"kind": "checking", "currency": "KRW"},
+               token=tok)
+    check("KRW account opens", krw["account"]["currency"] == "KRW", krw)
+    check("KRW formats without decimals",
+          store.fmt_money(1234, "KRW") == "₩1,234", store.fmt_money(1234, "KRW"))
+    check("USD still formats with 2 decimals",
+          store.fmt_money(1234.5, "USD") == "$1,234.50", store.fmt_money(1234.5, "USD"))
+
     # ---- cards ----
     cards = call("GET", "/api/user/cards", token=tok)
     n_before = len(cards["cards"])
@@ -384,7 +396,7 @@ def main():
     uid_demo = users["users"][0]["id"]
 
     detail = call("GET", "/api/admin/users/%d" % uid_demo, token=tok_adm)
-    check("admin user detail", len(detail["accounts"]) == 3 and detail["sessions"] >= 1)
+    check("admin user detail", len(detail["accounts"]) == 4 and detail["sessions"] >= 1)
 
     # adjust balance with reason
     acc0 = detail["accounts"][0]
@@ -534,6 +546,29 @@ def main():
     # restore
     call("PUT", "/api/system/settings", {"transfer_fee_pct": 0, "savings_apy": 4.25,
                                          "fx": {"EUR": 0.92}}, token=tok_adm)
+
+    # currencies: KRW is a first-class currency, not a bolt-on
+    check("KRW declared with 0 decimals",
+          store.CURRENCIES.get("KRW", {}).get("decimals") == 0)
+    check("every currency declares decimals",
+          all("decimals" in c for c in store.CURRENCIES.values()))
+    check("KRW fx rate seeded", store.load()["settings"]["fx"].get("KRW") == 1350.0)
+    r = call("PUT", "/api/system/settings", {"fx": {"KRW": 1400}}, token=tok_adm)
+    check("admin can set KRW rate",
+          any(c["key"] == "fx.KRW" for c in r["changed"]), r["changed"])
+    call("PUT", "/api/system/settings", {"fx": {"KRW": 1350}}, token=tok_adm)
+
+    # a db written before KRW existed must gain the rate when it loads
+    stale = store.new_db()
+    stale["settings"] = dict(store.DEFAULT_SETTINGS)
+    stale["settings"]["fx"] = {"USD": 1.0, "EUR": 0.92, "GBP": 0.79}
+    store._migrate(stale)
+    check("migration backfills missing fx code",
+          stale["settings"]["fx"].get("KRW") == 1350.0, stale["settings"]["fx"])
+
+    pub = call("GET", "/api/public/bootstrap")
+    check("public bootstrap exposes every currency",
+          set(pub["currencies"]) == set(store.CURRENCIES), pub["currencies"])
 
     # export/import round-trip
     exp = call("GET", "/api/system/export", token=tok_adm)

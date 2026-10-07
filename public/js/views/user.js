@@ -246,7 +246,7 @@ ZB.forms = ZB.forms || {};
     var sel = document.querySelector('form[data-form=u-deposit] [name=account_id]');
     var wrap = function () {
       var a = accts.filter(function (x) { return x.id === +sel.value; })[0];
-      var sym = { USD: '$', EUR: '€', GBP: '£' }[a ? a.currency : 'USD'] || '$';
+      var sym = U().curSymbol(a ? a.currency : 'USD');
       var prefixEl = document.querySelector('#dep-cur');
       if (prefixEl) { prefixEl.innerHTML = '<option>' + sym + '</option>'; }
     };
@@ -376,7 +376,9 @@ ZB.forms = ZB.forms || {};
       '<button type="button" data-k="checking" class="active">Checking</button>' +
       '<button type="button" data-k="savings">Savings · earns APY daily</button></div></div>' +
       '<div class="field"><label>Currency</label><select class="input" name="currency">' +
-      '<option>USD</option><option>EUR</option><option>GBP</option></select></div>' +
+      U().currencyList((ZB.state.boot || {}).currencies).map(function (c) {
+        return '<option value="' + c.code + '">' + c.code + ' — ' + c.name + '</option>';
+      }).join('') + '</select></div>' +
       '<div class="field"><label>Nickname (optional)</label><input class="input" name="label" placeholder="e.g. Trip to Tokyo"></div>' +
       '<button class="btn primary block lg" type="submit">' + U().icon('plus', 16) + ' Open account</button>' +
       '<p class="hint mt-1">Up to 6 accounts. Free, instant, no minimums.</p></form>');

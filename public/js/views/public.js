@@ -16,6 +16,13 @@ ZB.forms = ZB.forms || {};
       'Zentra<span class="spark">&#9679;</span></a>';
   }
 
+  function curList(boot, exclude) {
+    var codes = U().currencyList(boot && boot.currencies).map(function (c) { return c.code; })
+      .filter(function (c) { return c !== exclude; });
+    if (codes.length < 2) return codes.join('');
+    return codes.slice(0, -1).join(', ') + ' or ' + codes[codes.length - 1];
+  }
+
   function navLinks(active) {
     var links = [
       ['#/personal', 'Personal'],
@@ -184,9 +191,9 @@ ZB.forms = ZB.forms || {};
     var pairs = '';
     if (r && r.fx) {
       var f = r.fx;
-      ['EUR', 'GBP'].forEach(function (cur) {
+      Object.keys(f).filter(function (c) { return c !== 'USD'; }).forEach(function (cur, i) {
         pairs += '<span class="fx-pair"><b>USD / ' + cur + '</b>' + Number(f[cur]).toFixed(4) +
-          '<span class="' + (cur === 'EUR' ? 'up-arrow">&#9650;' : 'down-arrow">&#9660;') + '</span></span>';
+          '<span class="' + (i % 2 ? 'down-arrow">&#9660;' : 'up-arrow">&#9650;') + '</span></span>';
         pairs += '<span class="fx-pair"><b>' + cur + ' / USD</b>' + (1 / f[cur]).toFixed(4) + '</span>';
       });
     }
@@ -228,7 +235,7 @@ ZB.forms = ZB.forms || {};
       '<section class="section"><div class="section-head reveal">' +
       '<span class="eyebrow">Get started</span><h2>Open your account in three steps</h2></div>' +
       '<div class="steps reveal">' +
-      '<div class="step"><h3>Tell us about you</h3><p>Name, email, and a strong password. Choose your default currency — USD, EUR or GBP.</p></div>' +
+      '<div class="step"><h3>Tell us about you</h3><p>Name, email, and a strong password. Choose your default currency — ' + curList(r) + '.</p></div>' +
       '<div class="step"><h3>Your checking opens instantly</h3><p>A real account number is issued the moment you sign up. Fund it whenever you\'re ready.</p></div>' +
       '<div class="step"><h3>Bank from anywhere</h3><p>Add savings, order a card, send money, pay bills, and track everything from one clean dashboard.</p></div>' +
       '</div></section>';
@@ -365,7 +372,7 @@ ZB.forms = ZB.forms || {};
       '<h2>Fine print, translated</h2></div><div class="faq-list reveal">' +
       faqBlock([
         ['Are there overdraft fees?', 'No. We simply decline transactions that exceed your available balance rather than charging $35 for the privilege.'],
-        ['Can I have multiple accounts?', 'Up to six, across any mix of currencies (USD, EUR, GBP) — useful for travelers and freelancers billing abroad.'],
+        ['Can I have multiple accounts?', 'Up to six, across any mix of currencies (' + curList(r) + ') — useful for travelers and freelancers billing abroad.'],
         ['What happens if I lose my card?', 'Tap freeze immediately; the card stops working everywhere while you decide. Unfreeze it if it turns up in the couch, or order a replacement from the same screen.']
       ]) + '</div></section>';
 
@@ -387,7 +394,7 @@ ZB.forms = ZB.forms || {};
       '<a class="btn secondary lg" href="#/support">Talk to us</a></div>' +
       '<div class="mini-stats">' +
       '<div class="mini-stat"><b>' + exFee + '%</b><span>FX conversion fee</span></div>' +
-      '<div class="mini-stat"><b>3</b><span>currencies, one login</span></div>' +
+      '<div class="mini-stat"><b>' + U().currencyList(r && r.currencies).length + '</b><span>currencies, one login</span></div>' +
       '<div class="mini-stat"><b>$0</b><span>internal transfer cost</span></div></div></div>' +
       '<div class="bank-card-scene reveal"><div class="scene-card-back"></div>' +
       '<div class="realistic-card"><div class="rc-top"><div class="rc-brand">Zentra<small>Business</small></div></div>' +
@@ -406,7 +413,7 @@ ZB.forms = ZB.forms || {};
       '<div class="feat-grid cols-2 reveal">' +
       bizFeat('layers', 'A ledger worth reading', 'Every transaction carries category, counterparty, note and running balance. Export CSV statements for any month, any account, instantly.') +
       bizFeat('swap', 'Pay anyone, anywhere', 'Instant vendor payouts to other Zentra businesses, or scheduled external transfers with beneficiary book and compliance review above your configured threshold.') +
-      bizFeat('globe', 'Hold and convert FX', 'Keep EUR and GBP wallets alongside dollars and convert at ' + exFee + '% with live mid-market rates shown before you commit.') +
+      bizFeat('globe', 'Hold and convert FX', 'Keep ' + curList(r, 'USD') + ' wallets alongside dollars and convert at ' + exFee + '% with live mid-market rates shown before you commit.') +
       bizFeat('receipt', 'Payables without spreadsheets', 'Categorize utilities, rent, suppliers and software. Saved payees autocomplete from history so recurring runs take seconds.') +
       '</div></section>';
 
@@ -802,7 +809,7 @@ ZB.forms = ZB.forms || {};
   /* ======================================================= REGISTER */
   async function register() {
     var boot = await fetchBoot().catch(function () { return null; });
-    var curs = (boot && boot.currencies) || ['USD', 'EUR', 'GBP'];
+    var curs = U().currencyList(boot && boot.currencies);
 
     var html =
       '<div class="auth-page">' +
@@ -820,9 +827,9 @@ ZB.forms = ZB.forms || {};
       '<input class="input" type="password" name="password" required id="rg-pw" autocomplete="new-password" placeholder="At least 8 characters">' +
       '<div class="pw-meter"><i id="pw-bar"></i></div><div class="pw-hint" id="pw-hint">Use 8+ characters mixing letters, numbers &amp; symbols.</div></div>' +
       '<div class="field"><label>Default currency</label><select class="input" name="currency">' +
-      curs.map(function (c) { return '<option value="' + c + '"' + (c === 'USD' ? ' selected' : '') + '>' +
-        c + ' — ' + ({ USD: 'US Dollar', EUR: 'Euro', GBP: 'British Pound' }[c] || c) + '</option>'; }).join('') +
-      '</select><span class="hint">You can hold EUR and GBP wallets later too.</span></div>' +
+      curs.map(function (c) { return '<option value="' + c.code + '"' + (c.code === 'USD' ? ' selected' : '') + '>' +
+        c.code + ' — ' + c.name + '</option>'; }).join('') +
+      '</select><span class="hint">You can open wallets in other currencies later too.</span></div>' +
       '<div class="field"><label>4-digit transaction PIN</label>' +
       '<input class="input pin-input" type="password" name="pin" required inputmode="numeric" ' +
       'pattern="[0-9]{4}" maxlength="4" autocomplete="off" placeholder="••••" style="text-align:center;letter-spacing:10px">' +

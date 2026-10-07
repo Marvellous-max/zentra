@@ -18,9 +18,10 @@ _db = None
 _started_at = time.time()
 _log = logging.getLogger("store")
 
-CURRENCIES = {"USD": {"symbol": "$", "name": "US Dollar"},
-              "EUR": {"symbol": "\u20ac", "name": "Euro"},
-              "GBP": {"symbol": "\u00a3", "name": "British Pound"}}
+CURRENCIES = {"USD": {"symbol": "$", "name": "US Dollar", "decimals": 2},
+              "EUR": {"symbol": "\u20ac", "name": "Euro", "decimals": 2},
+              "GBP": {"symbol": "\u00a3", "name": "British Pound", "decimals": 2},
+              "KRW": {"symbol": "₩", "name": "South Korean Won", "decimals": 0}}
 
 
 def r2(x):
@@ -96,6 +97,12 @@ def _migrate(db):
     changed = False
     db.setdefault("declined_logs", [])
     db.setdefault("deliveries", [])
+    fx = db.get("settings", {}).get("fx")
+    if isinstance(fx, dict):
+        for code in CURRENCIES:
+            if code not in fx:
+                fx[code] = DEFAULT_SETTINGS["fx"].get(code, 1.0)
+                changed = True
     for u in db["users"]:
         if not u.get("tx_pin"):
             u["tx_pin"] = hash_pin(DEFAULT_PIN)
@@ -171,7 +178,7 @@ DEFAULT_SETTINGS = {
     "max_loan": 50000.0,
     "loan_terms_months": [6, 12, 24, 36],
     # fx (units of currency per 1 USD)
-    "fx": {"USD": 1.0, "EUR": 0.92, "GBP": 0.79},
+    "fx": {"USD": 1.0, "EUR": 0.92, "GBP": 0.79, "KRW": 1350.0},
 }
 
 
@@ -225,8 +232,10 @@ def public_user(u):
 
 # ------------------------------------------------------------ formatting ---
 def fmt_money(x, cur="USD"):
-    sym = CURRENCIES.get(cur, {}).get("symbol", "$")
-    return "%s%s" % (sym, format(r2(abs(x)), ",.2f"))
+    c = CURRENCIES.get(cur, {})
+    dp = int(c.get("decimals", 2))
+    v = round(abs(float(x)) + 1e-9, dp)
+    return "%s%s" % (c.get("symbol", "$"), format(v, ",.%df" % dp))
 
 
 def ref_code(prefix="ZN"):
