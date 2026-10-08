@@ -204,6 +204,9 @@ ZB.forms = ZB.forms || {};
       '<dt>Last login</dt><dd>' + (u.last_login_at ? U().rel(u.last_login_at) : 'never') + '</dd>' +
       '<dt>Phone</dt><dd>' + U().esc(u.phone || '—') + '</dd>' +
       '<dt>Country</dt><dd>' + U().esc(u.country || '—') + '</dd>' +
+      '<dt>Transfer limit</dt><dd>' + (Number(u.transfer_limit) > 0
+        ? U().money(u.transfer_limit) + ' <span class="tiny faint">per transfer</span>'
+        : '<span class="tiny faint">no cap</span>') + '</dd>' +
       '<dt>Sessions</dt><dd>' + d.sessions + '</dd>' +
       (d.profile.kyc_submitted_at ? '<dt>KYC doc</dt><dd class="mono small">' + U().esc(d.profile.kyc_doc || '—') + '</dd>' : '') +
       '</div>' +
@@ -216,6 +219,7 @@ ZB.forms = ZB.forms || {};
         ? '<button class="btn sm" id="dw-unrestrict">' + U().icon('check', 14) + ' Restore transactions</button>'
         : '<button class="btn sm solid-danger" id="dw-restrict">' + U().icon('lock', 14) + ' Freeze transactions</button>') +
       '<button class="btn sm" id="dw-adjust">' + U().icon('edit', 14) + ' Adjust balance</button>' +
+      '<button class="btn sm" id="dw-limit">' + U().icon('target', 14) + ' Transfer limit</button>' +
       '<button class="btn sm ghost" id="dw-role">' + U().icon('key', 14) + (u.role === 'admin' ? ' Revoke staff' : ' Make staff') + '</button>' +
       (d.profile.kyc_submitted_at && u.kyc_status === 'pending'
         ? '<button class="btn sm primary" id="dw-kyc">' + U().icon('shield', 14) + ' Review ID</button>'
@@ -298,6 +302,9 @@ ZB.forms = ZB.forms || {};
     bind('#dw-adjust', function () {
       adjustModal(id, d.accounts, function () { closeDrawer(); ZB.render(); });
     });
+    bind('#dw-limit', function () {
+      limitModal(id, u.transfer_limit, function () { closeDrawer(); ZB.render(); });
+    });
     bind('#dw-role', async function () {
       var newRole = u.role === 'admin' ? 'user' : 'admin';
       U().confirmBox((newRole === 'admin' ? 'Grant staff access?' : 'Revoke staff access?'),
@@ -326,6 +333,26 @@ ZB.forms = ZB.forms || {};
   function closeDrawer() {
     var el = document.getElementById('cust-drawer');
     if (el) el.remove();
+  }
+
+  function limitModal(userId, current, done) {
+    U().modal(
+      '<div class="modal-head"><h3>Transfer limit</h3><button class="icon-btn" data-x-close>' + U().icon('x', 16) + '</button></div>' +
+      '<p class="small muted mb-2">Caps a single outgoing transfer for this customer, in USD-equivalent. This is set per customer — there is no bank-wide cap or daily limit.</p>' +
+      '<form data-form="adm-limit">' +
+      '<div class="field"><label>Maximum per transfer ($)</label>' +
+      '<input class="input" type="number" step="1" min="0" max="10000000" name="transfer_limit" required value="' +
+      Number(current || 0) + '"></div>' +
+      '<p class="hint mb-2">Enter 0 to remove the cap entirely.</p>' +
+      '<button class="btn primary block" type="submit">' + U().icon('check', 15) + ' Save limit</button></form>');
+    ZB.forms['adm-limit'] = async function (data) {
+      try {
+        await ZB.api.put('/api/admin/users/' + userId, { transfer_limit: data.transfer_limit });
+        U().closeModal();
+        U().toast('Transfer limit updated');
+        if (done) done();
+      } catch (e) { U().toast(e.message, 'err'); }
+    };
   }
 
   function adjustModal(userId, accounts, done) {

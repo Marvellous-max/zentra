@@ -518,9 +518,10 @@ ZB.forms = ZB.forms || {};
     }
     function fmtLimitHint(fromSel) {
       var a = accts.filter(function (x) { return x.id === +fromSel.value; })[0];
-      if (a) root.querySelector('#tf-limit-hint').textContent =
-        ZB.t("Single limit $") + Number(b.limits.max_single || 25000).toLocaleString() +
-        ZB.t(" · Daily limit $") + Number(b.limits.daily || 50000).toLocaleString() + ' (USD-equiv)';
+      var lim = Number(b.limits.max_single || 0);
+      if (a) root.querySelector('#tf-limit-hint').textContent = lim
+        ? ZB.t("Single limit $") + lim.toLocaleString() + ' (USD-equiv)'
+        : ZB.t("No transfer limit");
     }
 
     function updateSummary() {

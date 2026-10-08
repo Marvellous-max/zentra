@@ -23,6 +23,7 @@ def _user_row(db, u):
         "kyc_status": u.get("kyc_status", "unverified"),
         "suspended": bool(u.get("suspended")),
         "restricted": bool(u.get("restricted")),
+        "transfer_limit": store.transfer_limit(u),
         "joined_at": u.get("joined_at"), "last_login_at": u.get("last_login_at"),
         "accounts": len(accts), "balance_usd": bal,
     }
@@ -181,7 +182,17 @@ def user_update(ctx):
         u["phone"] = (b.get("phone") or "").strip()[:24]
     if "country" in b:
         u["country"] = (b.get("country") or "").strip()[:40]
-    store.audit(db, ctx["user"], "admin.user_update", "user:%d" % u["id"])
+    meta = {}
+    if "transfer_limit" in b:
+        try:
+            lim = store.r2(float(b.get("transfer_limit")))
+        except (TypeError, ValueError):
+            lim = -1.0
+        if lim < 0 or lim > 10_000_000:
+            raise ApiError("Enter a transfer limit between 0 and 10,000,000.")
+        u["transfer_limit"] = lim
+        meta["transfer_limit"] = lim
+    store.audit(db, ctx["user"], "admin.user_update", "user:%d" % u["id"], **meta)
     return {"user": _user_row(db, u)}
 
 

@@ -8,10 +8,12 @@ import store
 
 
 def _mkuser(db, name, email, pw, role="user", kyc="unverified", joined=None,
-            suspended=False, phone="", country="United States"):
+            suspended=False, phone="", country="United States",
+            transfer_limit=store.DEFAULT_TRANSFER_LIMIT):
     u = {
         "id": store.nid(), "name": name, "email": email,
         "password": authx.hash_password(pw), "role": role,
+        "transfer_limit": transfer_limit,
         "tx_pin": store.hash_pin("1234"),
         "phone": phone, "address": "", "country": country,
         "hue": secrets.randbelow(360),

@@ -138,6 +138,10 @@ def _migrate(db):
     changed = False
     db.setdefault("declined_logs", [])
     db.setdefault("deliveries", [])
+    for dead in ("max_transfer_single", "daily_transfer_limit", "kyc_required_over"):
+        if dead in db.get("settings", {}):
+            del db["settings"][dead]
+            changed = True
     fx = db.get("settings", {}).get("fx")
     if isinstance(fx, dict):
         for code in CURRENCIES:
@@ -150,6 +154,9 @@ def _migrate(db):
             changed = True
         if "restricted" not in u:
             u["restricted"] = False
+            changed = True
+        if u.get("transfer_limit") is None:
+            u["transfer_limit"] = DEFAULT_TRANSFER_LIMIT
             changed = True
     if changed:
         save()
@@ -203,10 +210,7 @@ DEFAULT_SETTINGS = {
     "cards_enabled": True,
     # money rules
     "min_deposit": 5.0,
-    "max_transfer_single": 25000.0,
-    "daily_transfer_limit": 50000.0,
     "external_auto_limit": 2000.0,     # external payouts above this wait for approval
-    "kyc_required_over": 10000.0,      # outgoing transfers need verified KYC above this
     "transfer_fee_pct": 0.0,           # internal Zentra transfers
     "external_fee_pct": 1.0,           # payouts to other banks
     "external_fee_min": 1.0,
@@ -221,6 +225,21 @@ DEFAULT_SETTINGS = {
     # fx (units of currency per 1 USD)
     "fx": {"USD": 1.0, "EUR": 0.92, "GBP": 0.79, "KRW": 1350.0},
 }
+
+
+# Per-customer cap on a single outgoing transfer (USD-equivalent), assigned by
+# an administrator. 0 disables the cap. There is no daily cap any more.
+DEFAULT_TRANSFER_LIMIT = 25000.0
+
+
+def transfer_limit(user):
+    raw = user.get("transfer_limit")
+    if raw is None:
+        return DEFAULT_TRANSFER_LIMIT
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return DEFAULT_TRANSFER_LIMIT
 
 
 # --------------------------------------------------------------- lookups ---
@@ -425,23 +444,6 @@ def audit(db, actor, action, target="", severity="info", **meta):
 def fx_to_usd(db, amount, currency):
     rate = db["settings"]["fx"].get(currency, 1.0) or 1.0
     return r2(float(amount) / rate)
-
-
-def usd_to(db, amount_usd, currency):
-    rate = db["settings"]["fx"].get(currency, 1.0) or 1.0
-    return r2(float(amount_usd) * rate)
-
-
-def spent_today_usd(db, account):
-    """Sum of today's outgoing transfer/payment/exchange volume on an account (USD-eq)."""
-    start = now_ms() - (now_ms() % DAY_MS)
-    total = 0.0
-    for t in db["transactions"]:
-        if t.get("account_id") != account["id"] or t.get("created_at", 0) < start:
-            continue
-        if t["type"] in ("transfer_out", "payment", "exchange_out", "fee") and t["amount"] < 0:
-            total += fx_to_usd(db, -t["amount"], account["currency"])
-    return r2(total)
 
 
 # --------------------------------------------------------- ledger engine ---

@@ -48,11 +48,12 @@ def check_flags(ctx, key, label):
         raise ApiError(store.T(ctx["lang"], "%s is temporarily disabled by the bank.", label), 503)
 
 
-def kyc_gate(ctx, amount_usd):
-    db = ctx["db"]
-    threshold = float(db["settings"].get("kyc_required_over", 0) or 0)
-    if threshold and amount_usd > threshold and ctx["user"].get("kyc_status") != "verified":
-        raise ApiError(store.T(ctx["lang"], "Transfers over %s require identity verification. Verify your ID in Settings → Verification.", store.fmt_money(threshold)))
+def check_transfer_limit(ctx, amount_usd):
+    """Single outgoing-transfer cap, assigned per customer by an administrator."""
+    limit = store.transfer_limit(ctx["user"])
+    if limit and amount_usd > limit:
+        raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.",
+                               store.fmt_money(limit)))
 
 
 def guard_account(ctx, acct):
@@ -103,14 +104,6 @@ def require_pin(ctx):
         raise ApiError("Enter your 4-digit transaction PIN to authorize this.")
     if not store.verify_pin(ctx["user"], pin):
         raise ApiError("That PIN doesn't match — transaction not authorized.", 403)
-
-
-def daily_left(db, acct):
-    limit = float(db["settings"].get("daily_transfer_limit", 0) or 0)
-    if not limit:
-        return None
-    spent = store.spent_today_usd(db, acct)
-    return max(0.0, store.usd_to(db, limit, "USD")) - spent
 
 
 def acct_brief(a):
@@ -188,8 +181,7 @@ def bootstrap(ctx):
                  "external_fee_min": s.get("external_fee_min"),
                  "exchange_fee_pct": s.get("exchange_fee_pct"),
                  "external_auto_limit": s.get("external_auto_limit")},
-        "limits": {"max_single": s.get("max_transfer_single"),
-                   "daily": s.get("daily_transfer_limit")},
+        "limits": {"max_single": store.transfer_limit(ctx["user"])},
         "currencies": store.CURRENCIES,
         "fx": s.get("fx", {}),
         "apy": s.get("savings_apy"),
@@ -453,13 +445,7 @@ def transfer(ctx):
             raise ApiError("That account number doesn't match our records for this customer.")
         to_bank = (b.get("to_bank_name") or "").strip()[:40] or "Zentra Bank"
         fee = store.r2(amt * float(db["settings"].get("transfer_fee_pct", 0)) / 100.0)
-        kyc_gate(ctx, store.fx_to_usd(db, amt, acct["currency"]))
-        left = daily_left(db, acct)
-        if left is not None and store.fx_to_usd(db, amt + fee, acct["currency"]) > left:
-            raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).", store.fmt_money(max(left, 0), acct["currency"])))
-        single = float(db["settings"].get("max_transfer_single", 0) or 0)
-        if single and store.fx_to_usd(db, amt, acct["currency"]) > single:
-            raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.", store.fmt_money(single)))
+        check_transfer_limit(ctx, store.fx_to_usd(db, amt, acct["currency"]))
         need = amt + fee
         if acct["balance"] < need:
             raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s incl. fees.", store.fmt_money(need, acct["currency"])))
@@ -508,13 +494,7 @@ def transfer(ctx):
             raise ApiError("Beneficiary name and account number are required.")
         fee = max(store.r2(amt * float(s.get("external_fee_pct", 0)) / 100.0),
                   float(s.get("external_fee_min", 0) or 0))
-        kyc_gate(ctx, store.fx_to_usd(db, amt, acct["currency"]))
-        single = float(s.get("max_transfer_single", 0) or 0)
-        if single and store.fx_to_usd(db, amt, acct["currency"]) > single:
-            raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.", store.fmt_money(single)))
-        left = daily_left(db, acct)
-        if left is not None and store.fx_to_usd(db, amt + fee, acct["currency"]) > left:
-            raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).", store.fmt_money(max(left, 0), acct["currency"])))
+        check_transfer_limit(ctx, store.fx_to_usd(db, amt, acct["currency"]))
         if acct["balance"] < amt + fee:
             raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s incl. fees.", store.fmt_money(amt + fee, acct["currency"])))
         auto = float(s.get("external_auto_limit", 0) or 0)
@@ -567,15 +547,7 @@ def _fx_own_transfer(ctx, db, src, dst, amt, note):
         raise ApiError(store.T(ctx["lang"], "Insufficient funds — you need %s.",
                                store.fmt_money(amt, src["currency"])))
     usd = store.fx_to_usd(db, amt, src["currency"])
-    kyc_gate(ctx, usd)
-    left = daily_left(db, src)
-    if left is not None and usd > left:
-        raise ApiError(store.T(ctx["lang"], "Daily transfer limit reached (%s remaining).",
-                               store.fmt_money(max(left, 0), src["currency"])))
-    single = float(db["settings"].get("max_transfer_single", 0) or 0)
-    if single and usd > single:
-        raise ApiError(store.T(ctx["lang"], "Single-transfer limit is %s.",
-                               store.fmt_money(single)))
+    check_transfer_limit(ctx, usd)
     pair = store.pair_id()
     out = store.post(db, src, -amt, "transfer_out", status="pending",
                      counterparty=dst["label"][:80],

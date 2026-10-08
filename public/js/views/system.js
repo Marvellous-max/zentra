@@ -171,11 +171,9 @@ ZB.forms = ZB.forms || {};
 
       '<div class="grid cols-2 mb-2">' +
       '<div class="card"><div class="card-title"><h3>Limits & thresholds</h3></div>' +
-      numField('max_transfer_single', 'Single transfer cap ($)', '0 disables the cap.', '1') +
-      numField('daily_transfer_limit', 'Daily transfer limit ($)', 'Per account, USD-equivalent. 0 = unlimited.', '1') +
       numField('external_auto_limit', 'Auto-approve external payouts under ($)', 'Above this they queue for approval.') +
-      numField('kyc_required_over', 'KYC required over ($)', 'Outgoing transfers above this need verified identity.') +
-      numField('min_deposit', 'Minimum deposit ($)', '', '1') + '</div>' +
+      numField('min_deposit', 'Minimum deposit ($)', '', '1') +
+      '<p class="hint">Per-customer transfer limits are set on the individual customer, under Customers.</p></div>' +
 
       '<div class="card"><div class="card-title"><h3>Fees & rates</h3></div>' +
       numField('transfer_fee_pct', 'Zentra transfer fee (%)', 'Keep 0 — free is the promise.') +

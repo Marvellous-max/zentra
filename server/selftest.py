@@ -269,6 +269,45 @@ def main():
         err404 = "No Zentra customer" in e.message
     check("unknown recipient message", err404)
 
+    # ---- admin-assigned per-customer transfer limit ----
+    demo_uid = store.find_user_by_email(store.load(), "demo@zentra.bank")["id"]
+    det = call("GET", "/api/admin/users/%d" % demo_uid, token=atok)
+    check("admin sees transfer limit", det["user"].get("transfer_limit") is not None,
+          det["user"])
+
+    r = call("PUT", "/api/admin/users/%d" % demo_uid, {"transfer_limit": 50}, token=atok)
+    check("admin sets transfer limit", r["user"]["transfer_limit"] == 50, r["user"])
+
+    over = False
+    try:
+        call("POST", "/api/user/transfers", {"mode": "zentra", "from_account_id": chk_id,
+             "to_email": "sofia@example.com", "amount": 75,
+             "to_account_number": sofia_chk["number"]}, token=tok)
+    except routing.ApiError as e:
+        over = "Single-transfer limit" in e.message
+    check("transfer over admin limit declined", over)
+
+    r = call("POST", "/api/user/transfers", {"mode": "zentra", "from_account_id": chk_id,
+             "to_email": "sofia@example.com", "amount": 40,
+             "to_account_number": sofia_chk["number"]}, token=tok)
+    check("transfer under admin limit ok", r["ok"])
+
+    bad = False
+    try:
+        call("PUT", "/api/admin/users/%d" % demo_uid, {"transfer_limit": -1}, token=atok)
+    except routing.ApiError as e:
+        bad = "between 0 and 10,000,000" in e.message
+    check("negative transfer limit rejected", bad)
+
+    call("PUT", "/api/admin/users/%d" % demo_uid, {"transfer_limit": 0}, token=atok)
+    r = call("POST", "/api/user/transfers", {"mode": "zentra", "from_account_id": chk_id,
+             "to_email": "sofia@example.com", "amount": 75,
+             "to_account_number": sofia_chk["number"]}, token=tok)
+    check("zero limit means uncapped", r["ok"])
+
+    # restore the seeded cap so later transfers in this run behave normally
+    call("PUT", "/api/admin/users/%d" % demo_uid, {"transfer_limit": 25000}, token=atok)
+
     # ---- external payout below auto-limit completes instantly ----
     r = call("POST", "/api/user/beneficiaries",
              {"name": "External Test", "bank": "Some Bank", "account_number": "12345678"},
@@ -286,8 +325,6 @@ def main():
              token=tok)
     check("big payout pends for approval", r["pending"] is True)
     pend_ref = r["transactions"][0]["ref"]
-
-    # KYC gate over threshold? (kyc_required_over=10000; verified user fine)
 
     # ---- exchange ----
     q = call("GET", "/api/user/exchange/quote", token=tok,

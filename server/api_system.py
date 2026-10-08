@@ -21,9 +21,9 @@ BOOL_KEYS = ["maintenance_mode", "registrations_open", "deposits_enabled",
              "payments_enabled", "exchange_enabled", "loans_enabled", "cards_enabled"]
 
 NUM_KEYS = {  # key -> (min, max)
-    "min_deposit": (0, 100000), "max_transfer_single": (0, 10_000_000),
-    "daily_transfer_limit": (0, 100_000_000), "external_auto_limit": (0, 10_000_000),
-    "kyc_required_over": (0, 10_000_000), "transfer_fee_pct": (0, 10),
+    "min_deposit": (0, 100000),
+    "external_auto_limit": (0, 10_000_000),
+    "transfer_fee_pct": (0, 10),
     "external_fee_pct": (0, 15), "external_fee_min": (0, 500),
     "exchange_fee_pct": (0, 10), "card_issue_fee": (0, 500),
     "savings_apy": (0, 20), "loan_apr": (0, 100),
