@@ -2,6 +2,9 @@
 data/
 server/data/
 server/data-selftest/
+
+# private legal documents — kept on disk only, never served or shipped
+/legal/
 __pycache__/
 *.pyc
 .DS_Store

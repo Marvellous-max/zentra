@@ -44,7 +44,6 @@ ZB.forms = ZB.forms || {};
       '<div class="utility-bar"><div class="uwrap">' +
       "<span class=\"hide-sm\">" + ZB.t("Member FDIC &#183; Equal Housing Lender &#183; Routing #021000021") + "</span>" +
       "<span><a href=\"#/about\" class=\"hide-sm\">" + ZB.t("About us") + "</a><span class=\"sep hide-sm\"> | </span>" +
-      "<a href=\"#/legal\">" + ZB.t("Disclosures") + "</a><span class=\"sep\"> | </span>" +
       "<a href=\"#/support\">" + ZB.t("Contact") + "</a>" +
       (signedIn ? '<span class="sep"> | </span><a href="' + dashHref + '">' + ZB.t("My accounts") + '</a>' : '') +
       '</span></div></div>' +
@@ -89,18 +88,12 @@ ZB.forms = ZB.forms || {};
       "<div class=\"mf-col\"><h4>" + ZB.t("Company") + "</h4>" +
       "<a href=\"#/about\">" + ZB.t("About us") + "</a><a href=\"#/security\">" + ZB.t("Security center") + "</a>" +
       "<a href=\"#/support\">" + ZB.t("Help center") + "</a><a href=\"#/support\">" + ZB.t("Contact us") + "</a>" +
-      "<a href=\"#/legal\">" + ZB.t("Careers") + "</a></div>" +
-      "<div class=\"mf-col\"><h4>" + ZB.t("Legal") + "</h4>" +
-      "<a href=\"#/legal\">" + ZB.t("Disclosures") + "</a><a href=\"#/legal\">" + ZB.t("Privacy notice") + "</a>" +
-      "<a href=\"#/legal\">" + ZB.t("Terms of service") + "</a><a href=\"#/legal\">" + ZB.t("Accessibility") + "</a>" +
-      "<a href=\"#/legal\">" + ZB.t("Customer resolution") + "</a></div>" +
       '</div>' +
       '<div class="mf-legal"><div class="mf-legal-inner">' +
       '<div class="mf-fdic">' + U().icon('shield', 16) +
       "<span>" + ZB.t("Deposits held at Zentra Bank are FDIC-insured up to $250,000 per depositor, per ownership category.") + "</span></div>" +
       "<p class=\"disclosure\">" + ZB.t("Zentra Bank, N.A. Member FDIC. Equal Housing Lender. Deposit products offered by Zentra Bank, N.A., Member FDIC. Credit products are subject to credit approval and program guidelines. Advertised rates are accurate as of today and may change at any time. Savings interest is calculated daily and credited to your account each day the bank is open. External transfer delivery times vary by receiving institution, typically 1&ndash;3 business days.") + "</p>" +
-      '<div class="mf-bottom"><span>&copy; ' + yr + " " + ZB.t("Zentra Bank, N.A. All rights reserved.") + "</span>" +
-      "<span><a href=\"#/legal\">" + ZB.t("Privacy") + "</a><a href=\"#/legal\">" + ZB.t("Terms") + "</a><a href=\"#/legal\">" + ZB.t("Site map") + "</a></span></div>" +
+      '<div class="mf-bottom"><span>&copy; ' + yr + " " + ZB.t("Zentra Bank, N.A. All rights reserved.") + "</span></div>" +
       '</div></div></footer>';
   }
 
@@ -725,44 +718,6 @@ ZB.forms = ZB.forms || {};
     return { html: html, mount: function () { bindPubChrome(); } };
   }
 
-  /* ========================================================== LEGAL */
-  async function legal() {
-    var today = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-    var page =
-      '<div class="info-page">' +
-      "<h1>" + ZB.t("Legal center") + "</h1>" +
-      "<p class=\"updated\">" + ZB.t("Last updated") + " " + today + " " + ZB.t("&#183; Zentra Bank, N.A. &#183; Member FDIC") + "</p>" +
-
-      "<h3>" + ZB.t("Deposit account agreement (summary)") + "</h3>" +
-      "<p>" + ZB.t("Deposits are held at Zentra Bank, N.A., Member FDIC, insured to the maximum allowed by law ($250,000 per depositor per ownership category). You are responsible for transactions initiated with your credentials; report unauthorized activity promptly.") + "</p>" +
-
-      "<h3>" + ZB.t("Truth in Savings disclosure") + "</h3>" +
-      "<p>" + ZB.t("The Annual Percentage Yield (APY) on Growth Savings is variable and may change after account opening. Interest is calculated using the daily balance method: the applicable daily rate is APY ÷ 366 applied to the collected balance each calendar day, credited to the account daily. Fees may reduce earnings. No minimum balance is required to open or obtain the advertised APY.") + "</p>" +
-
-      "<h3>" + ZB.t("Privacy notice") + "</h3>" +
-      "<p>" + ZB.t("We collect the information necessary to provide banking services: identity data, contact details, transaction records and device metadata for security. We do not sell personal information. Data is stored encrypted-at-rest in our primary datastore and replicated to encrypted backups. You may request export or deletion of your data via Support, subject to record-retention obligations that apply to financial institutions.") + "</p>" +
-
-      "<h3>" + ZB.t("Electronic communications consent") + "</h3>" +
-      "<p>" + ZB.t("By opening an account you consent to receive statements, disclosures and legally required notices electronically. Paper copies are available on request at no charge.") + "</p>" +
-
-      "<h3>" + ZB.t("Error resolution") + "</h3>" +
-      "<p>" + ZB.t("If you believe a transaction is wrong, contact Support immediately. We will investigate within two business days of hearing from you and correct any proven error, including crediting applicable interest. During investigation, provisional credit may be applied for eligible claims.") + "</p>" +
-
-      "<h3>" + ZB.t("Lending disclosures") + "</h3>" +
-      "<p>" + ZB.t("All credit products are subject to application, verification and credit approval. The advertised APR assumes excellent credit and automatic repayment. Representative example: $8,000 loan at 9.90% APR repaid over 24 months = approximately $369/month; total cost approximately $8,861. Late payments may incur fees after the 5-day grace period and affect future borrowing terms.") + "</p>" +
-
-      "<h3>" + ZB.t("Trademarks & accessibility") + "</h3>" +
-      "<p>" + ZB.t("Zentra and the Z-mark are trademarks of Zentra Bank, N.A. This site aims to conform to WCAG 2.1 AA; if you encounter an accessibility barrier, tell us at Support and we will fix it.") + "</p>" +
-
-      "<h3>" + ZB.t("Regulatory information") + "</h3>" +
-      "<p>" + ZB.t("Zentra Bank, N.A. is a national bank, Member FDIC and Equal Housing Lender. Deposits are insured to the maximum allowed by law.") + "</p>" +
-      '</div>';
-
-    var html = pubShell('#/legal', page);
-    return { html: html, mount: function () { bindPubChrome(); } };
-  }
-
   /* ========================================================== LOGIN */
   async function login() {
     var html =
@@ -833,8 +788,8 @@ ZB.forms = ZB.forms || {};
       'pattern="[0-9]{4}" maxlength="4" autocomplete="off" placeholder="••••" style="text-align:center;letter-spacing:10px">' +
       "<span class=\"hint\">" + ZB.t("You'll enter this to authorize transfers and payments — like your card PIN at an ATM.") + "</span></div>" +
       '<button class="btn lg block" type="submit">' + U().icon('check', 15) + " " + ZB.t("Create my account") + "</button></form>" +
-      "<p class=\"auth-note\">" + ZB.t("By continuing you agree to our") + " <a href=\"#/legal\">" + ZB.t("Terms") + "</a> " + ZB.t("and") + " " +
-      "<a href=\"#/legal\">" + ZB.t("Privacy Notice") + "</a>.<br>" + ZB.t("Already a customer?") + " <a href=\"#/login\">" + ZB.t("Sign in") + "</a></p>" +
+      "<p class=\"auth-note\">" + ZB.t("By continuing you agree to our") + " " + ZB.t("Terms") + " " + ZB.t("and") + " " +
+      ZB.t("Privacy Notice") + ".<br>" + ZB.t("Already a customer?") + " <a href=\"#/login\">" + ZB.t("Sign in") + "</a></p>" +
       '</div></div>';
 
     return {
@@ -891,6 +846,6 @@ ZB.forms = ZB.forms || {};
   ZB.views.public = {
     home: home, personal: personal, business: business,
     pricing: pricing, rates: rates, security: security, support: support,
-    about: about, legal: legal, login: login, register: register
+    about: about, login: login, register: register
   };
 })(window.ZB);

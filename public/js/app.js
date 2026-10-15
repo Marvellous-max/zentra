@@ -36,7 +36,6 @@ ZB.timers = [];
     '/security': function (q) { return ZB.views.public.security(q); },
     '/support': function (q) { return ZB.views.public.support(q); },
     '/about': function (q) { return ZB.views.public.about(q); },
-    '/legal': function (q) { return ZB.views.public.legal(q); },
     '/login': function (q) { return ZB.views.public.login(q); },
     '/register': function (q) { return ZB.views.public.register(q); }
   };
@@ -51,7 +50,6 @@ ZB.timers = [];
       '/security': ZB.t("Security"),
       '/support': ZB.t("Contact Us"),
       '/about': ZB.t("About Us"),
-      '/legal': ZB.t("Legal & Disclosures"),
       '/login': ZB.t("Sign In"),
       '/register': ZB.t("Open an Account")
     };
