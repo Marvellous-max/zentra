@@ -458,20 +458,22 @@ def transfer(ctx):
         inn = store.post(db, dest, amt, "transfer_in", counterparty=_first(ctx["user"]["name"]),
                          note=note or "From %s" % _first(ctx["user"]["name"]), method="internal", pair=pair)
         store.notify(db, dest_user["id"], "Money received",
-                     store.T(ctx["lang"], "%s sent you %s.", *(_first(ctx["user"]["name"]),
-                                          store.fmt_money(amt, dest["currency"]))),
+                     "%s sent you %s.",
                      link="#/app/statements", kind="success",
                      rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, dest["currency"])),
                            ("From", ctx["user"]["name"]), ("Account", dest["label"]),
                            ("New balance", store.fmt_money(dest["balance"], dest["currency"]))],
-                     ref=inn["ref"])
+                     ref=inn["ref"],
+                     args=(_first(ctx["user"]["name"]),
+                           store.fmt_money(amt, dest["currency"])))
         store.notify(db, ctx["user"]["id"], "Transfer sent",
-                     store.T(ctx["lang"], "%s to %s · %s completed.", *(store.fmt_money(amt, acct["currency"]), name, to_bank)),
+                     "%s to %s · %s completed.",
                      link="#/app/statements", kind="success",
                      rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                            ("To", name), ("Bank", to_bank),
                            ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
-                     ref=out["ref"])
+                     ref=out["ref"],
+                     args=(store.fmt_money(amt, acct["currency"]), name, to_bank))
         store.audit(db, ctx["user"], "transfer.zentra", "txn:%d" % out["id"], amount=amt,
                     currency=acct["currency"], to=dest_user["email"],
                     bank=to_bank, acct_last4=dest["number"].replace(" ", "")[-4:])
@@ -509,9 +511,10 @@ def transfer(ctx):
                                 "%s requested an external payout of %s to %s."
                                 % (ctx["user"]["name"], store.fmt_money(amt, acct["currency"]), ben_name))
             store.notify(db, ctx["user"]["id"], "Payout pending approval",
-                         store.T(ctx["lang"], "Your transfer of %s to %s is being reviewed by our team — "
-                         "typical approval within a few hours.", *(store.fmt_money(amt, acct["currency"]), ben_name)),
+                         "Your transfer of %s to %s is being reviewed by our team — "
+                         "typical approval within a few hours.",
                          link="#/app/statements", kind="info",
+                         args=(store.fmt_money(amt, acct["currency"]), ben_name),
                          rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                                ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
                                ("Status", "Under review")],
@@ -520,8 +523,9 @@ def transfer(ctx):
                         severity="warn", to=ben_name)
         else:
             store.notify(db, ctx["user"]["id"], "Payout sent",
-                         store.T(ctx["lang"], "%s was sent to %s.", *(store.fmt_money(amt, acct["currency"]), ben_name)),
+                         "%s was sent to %s.",
                          link="#/app/statements", kind="success",
+                         args=(store.fmt_money(amt, acct["currency"]), ben_name),
                          rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                                ("Beneficiary", ben_name), ("Bank", ben_bank[:60]),
                                ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
@@ -660,8 +664,9 @@ def exchange(ctx):
                      note="Exchanged @ %.4f (fee %.2f%%)" % (rate, fee_pct), fee=store.r2(gross - net),
                      pair=pair)
     store.notify(db, ctx["user"]["id"], "Exchange completed",
-                 store.T(ctx["lang"], "%s → %s @ %.4f", *(store.fmt_money(amt, src["currency"]),
-                                     store.fmt_money(net, dst["currency"]), rate)),
+                 "%s → %s @ %.4f",
+                 args=(store.fmt_money(amt, src["currency"]),
+                       store.fmt_money(net, dst["currency"]), rate),
                  kind="success",
                  rows=[("You sent", store.fmt_money(amt, src["currency"])),
                        ("You received", "<b>%s</b>" % store.fmt_money(net, dst["currency"])),
@@ -778,7 +783,8 @@ def new_card(ctx):
         store.post(db, acct, -fee, "fee", counterparty="Zentra Bank",
                    note="Physical card issue fee")
     store.notify(db, ctx["user"]["id"], "Card issued",
-                 store.T(ctx["lang"], "Your %s card \u2022%s is ready.", *(ctype, card["last4"])),
+                 "Your %s card •%s is ready.",
+                 args=(ctype, card["last4"]),
                  kind="success", cta="#/app/cards",
                  rows=[("Card", card["label"]), ("Number", card["masked"]),
                        ("Brand", "Visa"), ("Type", "Virtual" if ctype == "virtual" else "Physical")])
@@ -858,8 +864,9 @@ def pay_bill(ctx):
     t = store.post(db, acct, -amt, "payment", counterparty=biller[:80], category=category[:30],
                    note=("Customer ref %s" % ref_no) if ref_no else "", method="bill")
     store.notify(db, ctx["user"]["id"], "Payment successful",
-                 store.T(ctx["lang"], "%s paid to %s.", *(store.fmt_money(amt, acct["currency"]), biller)),
+                 "%s paid to %s.",
                  link="#/app/statements", kind="success",
+                 args=(store.fmt_money(amt, acct["currency"]), biller),
                  rows=[("Amount", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
                        ("Biller", biller[:80]), ("New balance", store.fmt_money(acct["balance"], acct["currency"]))],
                  ref=t["ref"])
@@ -931,7 +938,8 @@ def request_loan(ctx):
                         "%s requested %s over %dm @ %.1f%%."
                         % (ctx["user"]["name"], store.fmt_money(amt, acct["currency"]), term, apr))
     store.notify(db, ctx["user"]["id"], "Loan request submitted",
-                 store.T(ctx["lang"], "We're reviewing your request for %s — you'll be notified shortly.", store.fmt_money(amt, acct["currency"])))
+                 "We're reviewing your request for %s — you'll be notified shortly.",
+                 args=(store.fmt_money(amt, acct["currency"]),))
     store.audit(db, ctx["user"], "loan.request", "loan:%d" % loan["id"], amount=amt, term=term,
                 severity="warn")
     return {"loan": loan_view(db, loan)}
@@ -963,7 +971,8 @@ def repay_loan(ctx):
         loan["status"] = "repaid"
         loan["closed_at"] = store.now_ms()
         store.notify(db, ctx["user"]["id"], "Loan settled 🎉",
-                     store.T(ctx["lang"], "Loan #%d is fully repaid. Congratulations!", loan["id"]),
+                     "Loan #%d is fully repaid. Congratulations!",
+                     args=(loan["id"],),
                      kind="success", cta="#/app/loans",
                      rows=[("Loan", "#%d" % loan["id"]),
                            ("Final payment", "<b>%s</b>" % store.fmt_money(amt, acct["currency"])),
@@ -1006,7 +1015,9 @@ def cancel_request(ctx):
                             "%s withdrew their %s top-up request before review."
                             % (ctx["user"]["name"], amt))
         store.notify(db, ctx["user"]["id"], "Top-up request cancelled",
-                     store.T(ctx["lang"], "Your %s top-up request was cancelled. Nothing left your account.", amt), link="#/app/statements", kind="info",
+                     "Your %s top-up request was cancelled. Nothing left your account.",
+                     link="#/app/statements", kind="info",
+                     args=(amt,),
                      rows=[("Amount", amt), ("Method", (t.get("note") or "").replace("Top-up request · ", "").title() or "—"),
                            ("Status", "Withdrawn by you")],
                      ref=t["ref"])
@@ -1018,8 +1029,9 @@ def cancel_request(ctx):
                             "returned to their balance." % (ctx["user"]["name"], amt,
                                                             t.get("counterparty") or "external bank"))
         store.notify(db, ctx["user"]["id"], "Payout cancelled",
-                     store.T(ctx["lang"], "Your %s payout to %s was cancelled and the funds are back in your %s.", *(amt, t.get("counterparty") or "external bank", acct["label"])),
+                     "Your %s payout to %s was cancelled and the funds are back in your %s.",
                      link="#/app/statements", kind="info",
+                     args=(amt, t.get("counterparty") or "external bank", acct["label"]),
                      rows=[("Amount", "<b>%s</b>" % amt), ("Beneficiary", t.get("counterparty") or "—"),
                            ("Status", "Withdrawn by you"), ("Funds", "Returned to balance")],
                      ref=t["ref"])
@@ -1051,8 +1063,9 @@ def cancel_loan_request(ctx):
                         "%s withdrew their %s loan application before review."
                         % (ctx["user"]["name"], amt))
     store.notify(db, ctx["user"]["id"], "Loan application withdrawn",
-                 store.T(ctx["lang"], "Your %s loan application was withdrawn — nothing was owed or disbursed.", amt),
-                 link="#/app/loans")
+                 "Your %s loan application was withdrawn — nothing was owed or disbursed.",
+                 link="#/app/loans",
+                 args=(amt,))
     store.audit(db, ctx["user"], "loan.cancel", "loan:%d" % loan["id"],
                 severity="info", amount=loan["principal"])
     return {"ok": True, "loan": loan}

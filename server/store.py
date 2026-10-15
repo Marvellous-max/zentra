@@ -344,6 +344,14 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
            rows=None, cta=None, ref=None, greet=None, args=(), title_args=None):
     """Record a branded alert. `link` is an in-app route the customer can open.
 
+    Channels honour the customer's Settings → Notifications switches, each
+    independently, and only an explicit `False` disables one (a missing key
+    counts as enabled):
+      prefs.push_alerts    -> the in-app inbox entry ("real-time nudges")
+      prefs.email_alerts   -> the outbound email
+    Everything is translated into the *recipient's* prefs.lang, so callers
+    must pass the English source string plus `args` — never a `T()`-ed string.
+
     Email-specific extras (ignored by the in-app inbox):
       kind:  success | info | warning | critical  (colour + chip in the email)
       rows:  [(label, value)] structured detail table in the email
@@ -352,34 +360,38 @@ def notify(db, user_id, title, body, created_at=None, link="", kind="info",
       greet: customer first name for the "Dear ___," salutation
     Returns the outbound result so callers can report it honestly:
       True = handed to the provider, False = provider rejected it,
-      None = nothing sent (no provider configured, or no address on file).
+      None = nothing sent (no provider configured, no address on file,
+      or the customer turned email alerts off).
     """
     u = find_user(db, user_id)
-    lang = ((u or {}).get("prefs") or {}).get("lang") or "en"
+    prefs = (u or {}).get("prefs") or {}
+    lang = prefs.get("lang") or "en"
     title = T(lang, title, *(args if title_args is None else title_args))
     body = T(lang, body, *args)
     if rows:
         rows = [(T(lang, k), T(lang, v) if isinstance(v, str) else v)
                 for k, v in rows]
-    db["notifications"].append({
-        "id": nid(), "user_id": user_id, "title": title, "body": body,
-        "read": False, "created_at": created_at or now_ms(),
-        "from_email": ALERTS_EMAIL, "link": (link or "#/app")[:80],
-    })
+    if prefs.get("push_alerts", True) is not False:
+        db["notifications"].append({
+            "id": nid(), "user_id": user_id, "title": title, "body": body,
+            "read": False, "created_at": created_at or now_ms(),
+            "from_email": ALERTS_EMAIL, "link": (link or "#/app")[:80],
+        })
     # Best-effort real email: when a mail provider is configured, also send outbound.
     result = None
-    try:
-        import mail
-        u = u or find_user(db, user_id)
-        if u and u.get("email"):
-            result = mail.send(u["email"], title, body,
-                               kind=kind, rows=rows, ref=ref,
-                               cta=cta or (link or None),
-                               greet=greet or ((u.get("name") or "").split() or [""])[0],
-                               lang=lang)
-            log_delivery(db, u["email"], title, result)
-    except Exception as e:
-        _log.warning("outbound mail to user %s raised: %s", user_id, e)
+    if prefs.get("email_alerts", True) is not False:
+        try:
+            import mail
+            u = u or find_user(db, user_id)
+            if u and u.get("email"):
+                result = mail.send(u["email"], title, body,
+                                   kind=kind, rows=rows, ref=ref,
+                                   cta=cta or (link or None),
+                                   greet=greet or ((u.get("name") or "").split() or [""])[0],
+                                   lang=lang)
+                log_delivery(db, u["email"], title, result)
+        except Exception as e:
+            _log.warning("outbound mail to user %s raised: %s", user_id, e)
     if len(db["notifications"]) > 4000:
         db["notifications"] = db["notifications"][-3000:]
     return result

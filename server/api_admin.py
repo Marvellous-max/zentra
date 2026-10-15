@@ -219,8 +219,9 @@ def adjust_balance(ctx):
     t = store.post(db, acct, amt, "adjustment",
                    counterparty="Zentra Operations", note=reason[:160])
     store.notify(db, u["id"], "Balance adjusted",
-                 store.T(ctx["lang"], "%s%s on your %s account · %s", *("+" if amt > 0 else "", store.fmt_money(amt, acct["currency"]),
-                    acct["label"], reason)), kind="success",
+                 "%s%s on your %s account · %s", kind="success",
+                 args=("+" if amt > 0 else "", store.fmt_money(amt, acct["currency"]),
+                       acct["label"], reason),
                  rows=[("Adjustment", "<b>%s%s</b>" % ("+" if amt > 0 else "",
                        store.fmt_money(amt, acct["currency"]))),
                        ("Account", acct["label"]),
@@ -416,8 +417,9 @@ def review_kyc(ctx):
         u["kyc_status"] = "rejected"
         u["kyc_note"] = note or "Document unreadable — please resubmit."
         store.notify(db, u["id"], "Verification needs attention",
-                     store.T(ctx["lang"], "We couldn't verify your document: %s", u["kyc_note"]),
+                     "We couldn't verify your document: %s",
                      kind="warning", cta="#/app/settings",
+                     args=(u["kyc_note"],),
                      rows=[("Status", "Needs attention"), ("Reason", u["kyc_note"][:120]),
                            ("Next step", "Re-upload a clearer document")])
         store.audit(db, ctx["user"], "admin.kyc_reject", "user:%d" % u["id"], severity="warn")
@@ -486,8 +488,10 @@ def freeze_account(ctx):
     a["frozen"] = bool(ctx["body"].get("frozen", True))
     word = store.T(ctx["lang"], "frozen" if a["frozen"] else "unfrozen")
     store.notify(db, a["user_id"],
-                 store.T(ctx["lang"], "Account frozen" if a["frozen"] else "Account unfrozen"),
-                 store.T(ctx["lang"], "Your %s account was %s by the bank.", a["label"], word))
+                 "Account frozen" if a["frozen"] else "Account unfrozen",
+                 "Your %s account was %s by the bank.",
+                 title_args=(),
+                 args=(a["label"], word))
     store.audit(db, ctx["user"], "admin.freeze_account" if a["frozen"] else "admin.unfreeze_account",
                 "account:%d" % a["id"], severity="warn")
     return {"ok": True, "frozen": a["frozen"]}
@@ -544,7 +548,8 @@ def reverse_transaction(ctx):
     u = store.find_user(db, orig["user_id"])
     if u:
         store.notify(db, u["id"], "Transaction reversed",
-                     store.T(ctx["lang"], "%s of %s was reversed · %s", *(orig["ref"], store.fmt_money(orig["amount"], orig["currency"]), reason)))
+                     "%s of %s was reversed · %s",
+                     args=(orig["ref"], store.fmt_money(orig["amount"], orig["currency"]), reason))
     store.audit(db, ctx["user"], "admin.reverse_tx", "txn:%d" % tid,
                 severity="critical", reason=reason, ref=orig["ref"])
     return {"ok": True}
@@ -574,8 +579,9 @@ def review_pending_tx(ctx):
                 rows.append(("Credits", store.fmt_money(target["fx_converted"], dacct["currency"])))
         if u:
             store.notify(db, u["id"], "Transaction approved",
-                         store.T(ctx["lang"], "%s (%s) has been approved and completed · ref %s", *(amt, target.get("counterparty") or "transfer", target["ref"])),
+                         "%s (%s) has been approved and completed · ref %s",
                          link="#/app/statements", kind="success",
+                         args=(amt, target.get("counterparty") or "transfer", target["ref"]),
                          rows=rows,
                          ref=target["ref"])
         store.audit(db, ctx["user"], "admin.tx_approve", "txn:%d" % tid,
@@ -589,8 +595,9 @@ def review_pending_tx(ctx):
                                  message=message, tx_ref=target["ref"])
         if u:
             store.notify(db, u["id"], "Transaction declined",
-                         store.T(ctx["lang"], "%s was declined and any hold released to your balance · %s", *(amt, reason)),
+                         "%s was declined and any hold released to your balance · %s",
                          link="#/app/statements", kind="critical",
+                         args=(amt, reason),
                          rows=[("Amount", "<b>%s</b>" % amt), ("Reason", reason[:120]),
                                ("Funds", "Returned to your balance")],
                          ref=target["ref"])
@@ -647,8 +654,9 @@ def review_payout(ctx):
         store.complete_pending(db, tid, approve=True)
         if u:
             store.notify(db, u["id"], "Payout approved",
-                         store.T(ctx["lang"], "%s to %s is on its way.", *(amt, target.get("counterparty"))),
+                         "%s to %s is on its way.",
                          kind="success",
+                         args=(amt, target.get("counterparty")),
                          rows=[("Amount", "<b>%s</b>" % amt),
                                ("Beneficiary", target.get("counterparty") or "—"),
                                ("Status", "Approved — on its way")],
@@ -664,7 +672,8 @@ def review_payout(ctx):
                                  tx_ref=target["ref"])
         if u:
             store.notify(db, u["id"], "Payout rejected",
-                         store.T(ctx["lang"], "%s was returned to your account · %s", *(amt, reason or "contact support")), kind="critical",
+                         "%s was returned to your account · %s", kind="critical",
+                         args=(amt, reason or "contact support"),
                          rows=[("Amount", "<b>%s</b>" % amt), ("Reason", (reason or "contact support")[:120]),
                                ("Funds", "Returned to your balance")],
                          ref=target["ref"])
@@ -732,8 +741,9 @@ def review_loan(ctx):
                    % (loan["id"], loan["term_months"], loan["apr"]))
         if u:
             store.notify(db, u["id"], "Loan approved 🎉",
-                         store.T(ctx["lang"], "%s has been deposited into %s.", *(store.fmt_money(loan["principal"], acct["currency"]), acct["label"])),
+                         "%s has been deposited into %s.",
                          kind="success", cta="#/app/loans",
+                         args=(store.fmt_money(loan["principal"], acct["currency"]), acct["label"]),
                          rows=[("Principal", "<b>%s</b>" % store.fmt_money(loan["principal"], acct["currency"])),
                                ("Term", "%d months" % loan["term_months"]),
                                ("APR", "%.1f%%" % loan["apr"]),
@@ -747,7 +757,8 @@ def review_loan(ctx):
         loan["review_note"] = note or "Application declined."
         if u:
             store.notify(db, u["id"], "Loan application declined",
-                         store.T(ctx["lang"], "Reason: %s", loan["review_note"]), kind="critical", cta="#/app/loans",
+                         "Reason: %s", kind="critical", cta="#/app/loans",
+                         args=(loan["review_note"],),
                          rows=[("Application", "%s · %dm" % (store.fmt_money(loan["principal"], acct["currency"] if acct else "USD"), loan["term_months"])),
                                ("Reason", loan["review_note"][:120]),
                                ("Next step", "You can apply again anytime")])
@@ -849,7 +860,8 @@ def message_update(ctx):
         msg["replied_at"] = store.now_ms()
         if msg.get("user_id"):
             store.notify(db, msg["user_id"], "Support replied",
-                         store.T(ctx["lang"], "Re “%s”: %s", *(msg.get("subject")[:40], reply[:120])))
+                         "Re “%s”: %s",
+                         args=(msg.get("subject")[:40], reply[:120]))
     if b.get("resolve") is not None:
         msg["status"] = "resolved" if b["resolve"] else "open"
         if msg["status"] == "resolved":

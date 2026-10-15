@@ -938,6 +938,80 @@ def main():
     check("identity fallback keys stay out of the catalog",
           not (identity & set(fe)), sorted(identity & set(fe))[:3])
 
+    # ---- notification prefs + recipient-language correctness ---------------
+    def _notes(uid):
+        return [n for n in store.load()["notifications"] if n["user_id"] == uid]
+
+    def _mails(addr):
+        return len([d for d in store.load().get("deliveries", [])
+                    if d.get("to") == addr])
+
+    def _send(amount, sender_prefs=None, recv_prefs=None):
+        db = store.load()
+        if sender_prefs:
+            store.find_user_by_email(db, "demo@zentra.bank")["prefs"] = dict(
+                store.find_user_by_email(db, "demo@zentra.bank").get("prefs") or {},
+                **sender_prefs)
+        if recv_prefs:
+            store.find_user_by_email(db, "sofia@example.com")["prefs"] = dict(
+                store.find_user_by_email(db, "sofia@example.com").get("prefs") or {},
+                **recv_prefs)
+        store.save()
+        # an earlier section resets the dataset, so resolve both accounts fresh
+        src = next(a for a in store.user_accounts(db, demo_id)
+                   if a["label"] == "Everyday Checking")
+        _, dest, err = api_user._find_dest_by_email(db, "sofia@example.com",
+                                                    src["currency"], demo_id)
+        if err:
+            raise AssertionError("recipient lookup failed: %s" % err)
+        return call("POST", "/api/user/transfers",
+                    {"mode": "zentra", "from_account_id": src["id"],
+                     "to_email": "sofia@example.com", "amount": amount,
+                     "to_account_number": dest["number"],
+                     "to_bank_name": "Zentra Bank"}, token=tok)
+
+    db = store.load()
+    demo_u = store.find_user_by_email(db, "demo@zentra.bank")
+    sofia_u = store.find_user_by_email(db, "sofia@example.com")
+    demo_id, sofia_id = demo_u["id"], sofia_u["id"]
+    demo_mail, sofia_mail = demo_u["email"], sofia_u["email"]
+    # earlier sections revoke sessions, so open a fresh one for these transfers
+    tok = call("POST", "/api/auth/login",
+               {"email": "demo@zentra.bank", "password": "Demo@1234"})["token"]
+
+    # sender speaks Korean, recipient speaks English -> each gets their own language
+    _send(5, sender_prefs={"lang": "ko", "email_alerts": True, "push_alerts": True},
+                 recv_prefs={"lang": "en", "email_alerts": True, "push_alerts": True})
+    d_note, s_note = _notes(demo_id)[-1], _notes(sofia_id)[-1]
+    check("recipient alert written in recipient language",
+          s_note["title"] == "Money received" and "sent you" in s_note["body"],
+          "%r / %r" % (s_note["title"], s_note["body"]))
+    check("sender alert written in sender language",
+          "완료" in d_note["body"], d_note["body"])
+
+    # email_alerts off -> no outbound mail for that reader, in-app inbox intact
+    n0, m0, dm0 = len(_notes(sofia_id)), _mails(sofia_mail), _mails(demo_mail)
+    _send(5, recv_prefs={"lang": "en", "email_alerts": False, "push_alerts": True})
+    check("email_alerts off blocks outbound mail",
+          _mails(sofia_mail) == m0, "%d -> %d" % (m0, _mails(sofia_mail)))
+    check("email_alerts off keeps the in-app alert",
+          len(_notes(sofia_id)) == n0 + 1, "%d -> %d" % (n0, len(_notes(sofia_id))))
+    check("sender mail still goes out when recipient opted out",
+          _mails(demo_mail) == dm0 + 1, "%d -> %d" % (dm0, _mails(demo_mail)))
+
+    # push_alerts off -> in-app inbox entry dropped, email still sent
+    n0, m0 = len(_notes(sofia_id)), _mails(sofia_mail)
+    _send(5, recv_prefs={"lang": "en", "email_alerts": True, "push_alerts": False})
+    check("push_alerts off drops the in-app alert",
+          len(_notes(sofia_id)) == n0, "%d -> %d" % (n0, len(_notes(sofia_id))))
+    check("push_alerts off still emails",
+          _mails(sofia_mail) == m0 + 1, "%d -> %d" % (m0, _mails(sofia_mail)))
+
+    # leave the seeded preferences as they were
+    _send(5, sender_prefs={"lang": "en"}, recv_prefs={"lang": "en",
+                                                      "email_alerts": True,
+                                                      "push_alerts": True})
+
     print("")
     print("PASSED: %d" % len(PASS))
     if FAIL:
